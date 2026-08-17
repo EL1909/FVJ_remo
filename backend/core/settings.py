@@ -59,10 +59,13 @@ INSTALLED_APPS = [
     'corsheaders',
     # Backbone
     'evz_core',
+    'evz_crm',
     'evz_store',
     'evz_treasury',
     'evz_billing',
     'evz_calendars',
+    'evz_fieldwork',
+    'evz_showcase',
     'evz_sync',
     # Propias del cliente
     'accounts',
@@ -175,19 +178,19 @@ STATIC_URL = 'static/'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://esfuerzovz.com/fjv')
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://esfuerzovz.com/fvj')
 
 # Montaje bajo subruta. URL_PREFIX y FORCE_SCRIPT_NAME son ALTERNATIVAS, no
-# se usan juntas: si se ponen las dos, reverse() genera /fjv/fjv/... y se
+# se usan juntas: si se ponen las dos, reverse() genera /fvj/fvj/... y se
 # rompen los enlaces de email y los redirects del admin.
 #
-#   Nginx pasa la ruta completa  → URL_PREFIX='fjv/', FORCE_SCRIPT_NAME=''
-#   Nginx quita el prefijo       → URL_PREFIX='',      FORCE_SCRIPT_NAME='/fjv'
+#   Nginx pasa la ruta completa  → URL_PREFIX='fvj/', FORCE_SCRIPT_NAME=''
+#   Nginx quita el prefijo       → URL_PREFIX='',      FORCE_SCRIPT_NAME='/fvj'
 #   Dominio propio               → ambas vacías
 #
 # Igual que MCnails: Nginx pasa la ruta completa, así que el patrón
-# 'fjv/admin/' debe casar tal cual.
-URL_PREFIX = os.environ.get('URL_PREFIX', 'fjv/')
+# 'fvj/admin/' debe casar tal cual.
+URL_PREFIX = os.environ.get('URL_PREFIX', 'fvj/')
 FORCE_SCRIPT_NAME = os.environ.get('FORCE_SCRIPT_NAME', '') or None
 
 # Integración con EsfuerzoVZ. El token lo emite EsfuerzoVZ y es un secreto,
@@ -202,6 +205,6 @@ EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
 EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'FJV Remodelaciones <no-reply@esfuerzovz.com>')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'FVJ Remodelaciones <no-reply@esfuerzovz.com>')
 
 TEMPLATES[0]['DIRS'] = [BASE_DIR / 'templates']

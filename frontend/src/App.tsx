@@ -18,6 +18,10 @@ import { WebsiteCmsView } from './components/views/WebsiteCmsView';
 
 // Modals
 import { QuickEventModal, QuickClientModal } from './components/modals/QuickModals';
+import { LoginModal } from './components/auth/LoginModal';
+
+// Auth
+import { getAccessToken, fetchProfile, logout as apiLogout, Profile } from './lib/api';
 
 // Mock Initial Data
 import {
@@ -59,6 +63,36 @@ export default function App() {
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
   const [searchTerm, setSearchTerm] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  // Auth
+  const [currentUser, setCurrentUser] = useState<Profile | null>(null);
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
+
+  const handleRequestAdminAccess = async () => {
+    if (getAccessToken()) {
+      try {
+        const profile = await fetchProfile();
+        setCurrentUser(profile);
+        setViewMode('admin');
+        return;
+      } catch {
+        // Token inválido o expirado: cae al login de abajo.
+      }
+    }
+    setIsLoginOpen(true);
+  };
+
+  const handleLoginSuccess = (profile: Profile) => {
+    setCurrentUser(profile);
+    setIsLoginOpen(false);
+    setViewMode('admin');
+  };
+
+  const handleLogout = () => {
+    apiLogout();
+    setCurrentUser(null);
+    setViewMode('public');
+  };
 
   // Main Datasets
   const [clients, setClients] = useState<Client[]>(initialClients);
@@ -357,17 +391,24 @@ export default function App() {
 
   if (viewMode === 'public') {
     return (
-      <LandingPage
-        socialPosts={socialPosts}
-        reviews={reviews}
-        workOrders={workOrders}
-        heroConfig={websiteHeroConfig}
-        websiteProjects={websiteProjects}
-        companyData={companyData}
-        onBookAppointment={handleBookAppointment}
-        onAddReview={handleAddReview}
-        onSwitchToAdmin={() => setViewMode('admin')}
-      />
+      <>
+        <LandingPage
+          socialPosts={socialPosts}
+          reviews={reviews}
+          workOrders={workOrders}
+          heroConfig={websiteHeroConfig}
+          websiteProjects={websiteProjects}
+          companyData={companyData}
+          onBookAppointment={handleBookAppointment}
+          onAddReview={handleAddReview}
+          onSwitchToAdmin={handleRequestAdminAccess}
+        />
+        <LoginModal
+          isOpen={isLoginOpen}
+          onClose={() => setIsLoginOpen(false)}
+          onSuccess={handleLoginSuccess}
+        />
+      </>
     );
   }
 
@@ -397,6 +438,8 @@ export default function App() {
         isMenuOpen={isMenuOpen}
         onToggleMenu={() => setIsMenuOpen(!isMenuOpen)}
         onSwitchToPublic={() => setViewMode('public')}
+        currentUser={currentUser}
+        onLogout={handleLogout}
       />
 
 

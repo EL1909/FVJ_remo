@@ -30,7 +30,7 @@ class UserManager(BaseUserManager):
 
 class User(AbstractUser):
     """
-    Cuenta de acceso al panel de FJV Remodelaciones. A diferencia de MCnails,
+    Cuenta de acceso al panel de FVJ Remodelaciones. A diferencia de MCnails,
     aquí no hay auto-registro público: solo el equipo (dueño, empleados) tiene
     cuenta. Los clientes de la obra son registros gestionados por el equipo,
     no usuarios del sistema.

@@ -18,7 +18,7 @@ User = get_user_model()
 
 class LoginView(APIView):
     """
-    Login del panel interno (equipo de FJV). Sin auto-registro: las cuentas
+    Login del panel interno (equipo de FVJ). Sin auto-registro: las cuentas
     las crea un admin desde Django admin.
     """
     permission_classes = [permissions.AllowAny]

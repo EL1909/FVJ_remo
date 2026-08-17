@@ -12,7 +12,9 @@ import {
   LayoutGrid,
   ChevronDown,
   Globe,
+  LogOut,
 } from 'lucide-react';
+import { Profile } from '../../lib/api';
 
 interface NavbarProps {
   searchTerm: string;
@@ -24,6 +26,8 @@ interface NavbarProps {
   isMenuOpen: boolean;
   onToggleMenu: () => void;
   onSwitchToPublic?: () => void;
+  currentUser?: Profile | null;
+  onLogout?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -36,6 +40,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   isMenuOpen,
   onToggleMenu,
   onSwitchToPublic,
+  currentUser,
+  onLogout,
 }) => {
 
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
@@ -89,6 +95,23 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Right Actions */}
         <div className="flex items-center gap-2">
+          {currentUser && (
+            <span className="hidden md:inline text-[11px] text-stone-300 font-medium">
+              {currentUser.first_name || currentUser.email}
+            </span>
+          )}
+
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-stone-300 hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer"
+              title="Cerrar sesión"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline text-xs font-semibold">Salir</span>
+            </button>
+          )}
+
           {onSwitchToPublic && (
             <button
               onClick={onSwitchToPublic}
