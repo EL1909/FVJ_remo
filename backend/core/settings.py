@@ -1,0 +1,207 @@
+"""
+Django settings for core project.
+
+For more information on this file, see
+https://docs.djangoproject.com/en/6.0/topics/settings/
+
+For the full list of settings and their values, see
+https://docs.djangoproject.com/en/6.0/ref/settings/
+"""
+
+from pathlib import Path
+import os
+
+# Build paths inside the project like this: BASE_DIR / 'subdir'.
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Read .env file manually to avoid dependencies
+env_path = BASE_DIR / '.env'
+if env_path.exists():
+    with open(env_path) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#'):
+                key, val = line.split('=', 1)
+                os.environ.setdefault(key, val)
+
+
+# Quick-start development settings - unsuitable for production
+# See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
+
+# SECURITY WARNING: keep the secret key used in production secret!
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-default-dev-key')
+
+# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = os.environ.get('DEBUG') == 'True'
+
+def _csv_env(key, default):
+    """Lee una variable de entorno separada por comas como lista."""
+    raw = os.environ.get(key, default)
+    return [item.strip() for item in raw.split(',') if item.strip()]
+
+
+ALLOWED_HOSTS = _csv_env(
+    'ALLOWED_HOSTS', 'localhost,127.0.0.1,esfuerzovz.com,www.esfuerzovz.com'
+)
+
+
+# Application definition
+
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    # Third party
+    'rest_framework',
+    'corsheaders',
+    # Backbone
+    'evz_core',
+    'evz_store',
+    'evz_treasury',
+    'evz_billing',
+    'evz_calendars',
+    'evz_sync',
+    # Propias del cliente
+    'accounts',
+]
+
+AUTH_USER_MODEL = 'accounts.User'
+
+MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+CORS_ALLOWED_ORIGINS = _csv_env(
+    'CORS_ALLOWED_ORIGINS',
+    'http://localhost:5173,http://localhost:3000,https://esfuerzovz.com',
+)
+
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAdminUser',
+    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+}
+
+from datetime import timedelta
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+}
+
+ROOT_URLCONF = 'core.urls'
+
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+        },
+    },
+]
+
+WSGI_APPLICATION = 'core.wsgi.application'
+
+
+# Database
+import dj_database_url
+
+DATABASES = {
+    'default': dj_database_url.config(
+        default=f'sqlite:///{BASE_DIR / "db.sqlite3"}',
+        conn_max_age=600
+    )
+}
+
+
+# Password validation
+# https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
+
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+    },
+]
+
+
+# Internationalization
+# https://docs.djangoproject.com/en/6.0/topics/i18n/
+
+LANGUAGE_CODE = 'en-us'
+
+# Zona horaria del NEGOCIO, no del servidor ni del visitante. Las visitas y
+# obras son presenciales: la hora que importa es la del local. Se guarda todo
+# en UTC (USE_TZ) y se muestra en esta zona.
+TIME_ZONE = os.environ.get('TIME_ZONE', 'America/Caracas')
+
+USE_I18N = True
+
+USE_TZ = True
+
+
+# Static files (CSS, JavaScript, Images)
+# https://docs.djangoproject.com/en/6.0/howto/static-files/
+
+STATIC_URL = 'static/'
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://esfuerzovz.com/fjv')
+
+# Montaje bajo subruta. URL_PREFIX y FORCE_SCRIPT_NAME son ALTERNATIVAS, no
+# se usan juntas: si se ponen las dos, reverse() genera /fjv/fjv/... y se
+# rompen los enlaces de email y los redirects del admin.
+#
+#   Nginx pasa la ruta completa  → URL_PREFIX='fjv/', FORCE_SCRIPT_NAME=''
+#   Nginx quita el prefijo       → URL_PREFIX='',      FORCE_SCRIPT_NAME='/fjv'
+#   Dominio propio               → ambas vacías
+#
+# Igual que MCnails: Nginx pasa la ruta completa, así que el patrón
+# 'fjv/admin/' debe casar tal cual.
+URL_PREFIX = os.environ.get('URL_PREFIX', 'fjv/')
+FORCE_SCRIPT_NAME = os.environ.get('FORCE_SCRIPT_NAME', '') or None
+
+# Integración con EsfuerzoVZ. El token lo emite EsfuerzoVZ y es un secreto,
+# por eso vive aquí y no en BusinessProfile. Los datos de negocio (razón
+# social, project slug) sí van en BusinessProfile, editables desde el admin.
+EVZ_API_URL = os.environ.get('EVZ_API_URL', 'https://esfuerzovz.com')
+EVZ_API_TOKEN = os.environ.get('EVZ_API_TOKEN', '')
+
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'FJV Remodelaciones <no-reply@esfuerzovz.com>')
+
+TEMPLATES[0]['DIRS'] = [BASE_DIR / 'templates']

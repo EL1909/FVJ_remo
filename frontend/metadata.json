@@ -1,0 +1,6 @@
+{
+  "name": "Remodelaciones FVJ - Gestión de Reformas",
+  "description": "Sistema de gestión para Remodelaciones FVJ, empresa especializada en remodelación de baños y cocinas: agenda, presupuestos, órdenes, facturas, compra de materiales y registro de clientes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
