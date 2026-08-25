@@ -26,10 +26,10 @@ ssh -T git@github.com
 ### 2. Base de datos Postgres
 
 ```bash
-sudo -u postgres psql -c "CREATE DATABASE fvj_remodelaciones;"
+sudo -u postgres psql -c "CREATE DATABASE fvj_remo;"
 sudo -u postgres psql -c "CREATE USER fvj_admin WITH PASSWORD 'ELEGIR_UNA';"
-sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE fvj_remodelaciones TO fvj_admin;"
-sudo -u postgres psql -d fvj_remodelaciones -c "GRANT ALL ON SCHEMA public TO fvj_admin;"
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE fvj_remo TO fvj_admin;"
+sudo -u postgres psql -d fvj_remo -c "GRANT ALL ON SCHEMA public TO fvj_admin;"
 ```
 
 ### 3. Primer deploy (clona, instala, migra, build)
@@ -44,13 +44,13 @@ bash /tmp/deploy.sh   # va a fallar en "falta backend/.env" — es esperado
 ### 4. `backend/.env` en el servidor
 
 ```bash
-cd /home/efrain19091/projects/fvj_remodelaciones/fvj_remodelaciones/backend
+cd /home/efrain19091/projects/fvj_remo/fvj_remo/backend
 cp .env.example .env
 nano .env
 ```
 
 Completar como mínimo: `SECRET_KEY` (generar uno nuevo, no reusar el de
-local), `DEBUG=False`, `DATABASE_URL=postgres://fvj_admin:ELEGIDA@localhost:5432/fvj_remodelaciones`,
+local), `DEBUG=False`, `DATABASE_URL=postgres://fvj_admin:ELEGIDA@localhost:5432/fvj_remo`,
 `EVZ_API_TOKEN` (el mismo que ya está en el `.env` local), y opcionalmente
 `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` (par nuevo, generado en el servidor —
 no reutilizar el par de desarrollo).
@@ -58,7 +58,7 @@ no reutilizar el par de desarrollo).
 ### 5. Correr el deploy de verdad
 
 ```bash
-bash /home/efrain19091/projects/fvj_remodelaciones/fvj_remodelaciones/deploy.sh
+bash /home/efrain19091/projects/fvj_remo/fvj_remo/deploy.sh
 ```
 
 Esta vez llega hasta el final salvo por el último paso (gunicorn), que
@@ -67,7 +67,7 @@ todavía no existe — sigue en el paso 6.
 ### 6. Servicio systemd
 
 ```bash
-sudo cp /home/efrain19091/projects/fvj_remodelaciones/fvj_remodelaciones/deploy/gunicorn-fvj.service /etc/systemd/system/
+sudo cp /home/efrain19091/projects/fvj_remo/fvj_remo/deploy/gunicorn-fvj.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now gunicorn-fvj.service
 sudo systemctl status gunicorn-fvj.service   # debe decir "active (running)"
@@ -96,7 +96,7 @@ curl -I https://esfuerzovz.com/fvj/admin/
 Solo:
 
 ```bash
-bash /home/efrain19091/projects/fvj_remodelaciones/fvj_remodelaciones/deploy.sh
+bash /home/efrain19091/projects/fvj_remo/fvj_remo/deploy.sh
 ```
 
 Hace `git pull`, migra, junta estáticos, reconstruye el frontend, y

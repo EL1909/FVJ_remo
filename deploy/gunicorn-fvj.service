@@ -12,8 +12,8 @@ After=network.target
 [Service]
 User=efrain19091
 Group=www-data
-WorkingDirectory=/home/efrain19091/projects/fvj_remodelaciones/fvj_remodelaciones/backend
-ExecStart=/home/efrain19091/projects/fvj_remodelaciones/venv/bin/gunicorn core.wsgi:application --bind 127.0.0.1:8003 --workers 3
+WorkingDirectory=/home/efrain19091/projects/fvj_remo/fvj_remo/backend
+ExecStart=/home/efrain19091/projects/fvj_remo/venv/bin/gunicorn core.wsgi:application --bind 127.0.0.1:8003 --workers 3
 Restart=always
 RestartSec=3
 

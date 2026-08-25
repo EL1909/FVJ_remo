@@ -16,8 +16,8 @@
 
 set -euo pipefail
 
-PROJECT_DIR="/home/efrain19091/projects/fvj_remodelaciones"
-APP_DIR="$PROJECT_DIR/fvj_remodelaciones"
+PROJECT_DIR="/home/efrain19091/projects/fvj_remo"
+APP_DIR="$PROJECT_DIR/fvj_remo"
 VENV="$PROJECT_DIR/venv"
 REPO_URL="git@github.com:EL1909/FVJ_remo.git"
 

@@ -12,17 +12,17 @@
 
     # FVJ Remodelaciones — Frontend
     location /fvj/ {
-        alias /home/efrain19091/projects/fvj_remodelaciones/fvj_remodelaciones/frontend/dist/;
+        alias /home/efrain19091/projects/fvj_remo/fvj_remo/frontend/dist/;
         index index.html;
         try_files $uri $uri/ /fvj/index.html;
     }
 
     # FVJ Remodelaciones — Static & Media
     location /fvj/static/ {
-        alias /home/efrain19091/projects/fvj_remodelaciones/fvj_remodelaciones/backend/static/;
+        alias /home/efrain19091/projects/fvj_remo/fvj_remo/backend/static/;
     }
     location /fvj/media/ {
-        alias /home/efrain19091/projects/fvj_remodelaciones/fvj_remodelaciones/backend/media/;
+        alias /home/efrain19091/projects/fvj_remo/fvj_remo/backend/media/;
     }
 
     location ^~ /fvj/admin/ {
