@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Receipt,
   Plus,
@@ -10,31 +10,79 @@ import {
   Search,
   Building2,
   X,
+  Loader2,
+  MessageSquare,
+  User,
 } from 'lucide-react';
-import { Invoice, InvoiceStatus, Client } from '../../types';
+import { Invoice, WorkOrder } from '../../types';
+import { NewInvoiceInput, OrderDetail, fetchOrderDetail } from '../../lib/treasury';
+import { ApiError } from '../../lib/api';
+import { NotesThread } from '../shared/NotesThread';
 
 interface InvoicesViewProps {
   invoices: Invoice[];
-  clients: Client[];
-  onMarkInvoicePaid: (id: string) => void;
-  onSaveInvoice: (invoice: Invoice) => void;
+  workOrders: WorkOrder[];
+  onMarkInvoicePaid: (id: string) => Promise<void>;
+  onSaveInvoice: (invoice: NewInvoiceInput) => Promise<void>;
+  onAddInvoiceNote: (id: string, text: string) => Promise<void>;
 }
 
 export const InvoicesView: React.FC<InvoicesViewProps> = ({
   invoices,
-  clients,
+  workOrders,
   onMarkInvoicePaid,
   onSaveInvoice,
+  onAddInvoiceNote,
 }) => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [printInvoice, setPrintInvoice] = useState<Invoice | null>(null);
   const [isNewInvoiceOpen, setIsNewInvoiceOpen] = useState(false);
 
-  // New Invoice Form State
-  const [selectedClientId, setSelectedClientId] = useState(clients[0]?.id || '');
+  // New Invoice Form State — un hito de cobro sobre una obra real, no una
+  // factura suelta: el backend valida el monto contra el total de la obra.
+  const [selectedOrderId, setSelectedOrderId] = useState(workOrders[0]?.id || '');
   const [concept, setConcept] = useState('Anticipo 30% para Reforma de Baño');
-  const [subtotal, setSubtotal] = useState<number>(3000);
+  // Arranca en 0, no en un monto inventado: se precarga con el saldo real
+  // de la obra apenas carga su detalle (ver useEffect de abajo).
+  const [subtotal, setSubtotal] = useState<number>(0);
   const [taxRate, setTaxRate] = useState<number>(21);
+  const [dueDate, setDueDate] = useState(
+    new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  );
+  const [invoiceError, setInvoiceError] = useState<string | null>(null);
+  const [isSavingInvoice, setIsSavingInvoice] = useState(false);
+
+  // Detalle real de la Order (evz_store) detrás de la obra elegida — sus
+  // partidas, notas y estado de cobro. No viene en WorkOrder (eso es Task,
+  // solo fases de ejecución), así que se trae aparte al elegir la obra.
+  const [orderDetail, setOrderDetail] = useState<OrderDetail | null>(null);
+  const [isLoadingOrderDetail, setIsLoadingOrderDetail] = useState(false);
+  const [orderDetailError, setOrderDetailError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isNewInvoiceOpen) return;
+    const order = workOrders.find((w) => w.id === selectedOrderId);
+    if (!order?.orderId) {
+      setOrderDetail(null);
+      return;
+    }
+    setOrderDetail(null);
+    setOrderDetailError(null);
+    setIsLoadingOrderDetail(true);
+    fetchOrderDetail(order.orderId)
+      .then((detail) => {
+        setOrderDetail(detail);
+        // La Base Imponible arrancaba en un 3000 fijo sin relación a la
+        // obra elegida — el backend rechaza cualquier monto que sumado a
+        // lo ya facturado supere el total, así que precargar el saldo
+        // pendiente es lo único que tiene sentido como default.
+        setSubtotal(Number(detail.balanceDue.toFixed(2)));
+      })
+      .catch((err) =>
+        setOrderDetailError(err instanceof ApiError ? err.message : 'No se pudo cargar el detalle de la obra.')
+      )
+      .finally(() => setIsLoadingOrderDetail(false));
+  }, [isNewInvoiceOpen, selectedOrderId, workOrders]);
 
   const filteredInvoices = invoices.filter((i) => {
     if (statusFilter !== 'all' && i.status !== statusFilter) return false;
@@ -49,31 +97,27 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
     .filter((i) => i.status === 'pendiente' || i.status === 'vencida')
     .reduce((sum, i) => sum + i.total, 0);
 
-  const handleCreateInvoiceSubmit = (e: React.FormEvent) => {
+  const handleCreateInvoiceSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const client = clients.find((c) => c.id === selectedClientId) || clients[0];
-    const taxAmount = (subtotal * taxRate) / 100;
-    const total = subtotal + taxAmount;
+    const order = workOrders.find((w) => w.id === selectedOrderId);
+    if (!order?.orderId) return;
 
-    const newInv: Invoice = {
-      id: `inv-${Date.now()}`,
-      invoiceNumber: `FAC-2026-0${Math.floor(70 + Math.random() * 30)}`,
-      clientId: client.id,
-      clientName: client.name,
-      clientAddress: `${client.address}, ${client.city}`,
-      issueDate: new Date().toISOString().split('T')[0],
-      dueDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      status: 'pendiente',
-      concept,
-      projectType: 'baño',
-      subtotal,
-      taxAmount,
-      total,
-      paidAmount: 0,
-    };
-
-    onSaveInvoice(newInv);
-    setIsNewInvoiceOpen(false);
+    setInvoiceError(null);
+    setIsSavingInvoice(true);
+    try {
+      await onSaveInvoice({
+        orderId: order.orderId,
+        description: concept,
+        amount: subtotal,
+        taxRate,
+        dueDate,
+      });
+      setIsNewInvoiceOpen(false);
+    } catch (err) {
+      setInvoiceError(err instanceof ApiError ? err.message : 'No se pudo emitir la factura.');
+    } finally {
+      setIsSavingInvoice(false);
+    }
   };
 
   return (
@@ -107,7 +151,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
           <div>
             <div className="text-xs font-bold text-slate-500">Total Cobrado</div>
             <div className="text-2xl font-black text-emerald-700 mt-1">
-              {totalCollected.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
+              {totalCollected.toLocaleString('es-ES', { minimumFractionDigits: 2 })} $
             </div>
           </div>
           <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
@@ -119,7 +163,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
           <div>
             <div className="text-xs font-bold text-slate-500">Pendiente de Cobro</div>
             <div className="text-2xl font-black text-[#800020] mt-1">
-              {totalPending.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
+              {totalPending.toLocaleString('es-ES', { minimumFractionDigits: 2 })} $
             </div>
           </div>
           <div className="w-10 h-10 rounded-xl bg-rose-100 text-[#800020] flex items-center justify-center">
@@ -155,7 +199,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
         {filteredInvoices.map((inv) => (
           <div
             key={inv.id}
-            className="bg-white rounded-2xl p-5 space-y-3 shadow-sm hover:shadow-md transition-all"
+            onClick={() => setPrintInvoice(inv)}
+            className="bg-white rounded-2xl p-5 space-y-3 shadow-sm hover:shadow-md transition-all cursor-pointer"
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-3">
@@ -171,7 +216,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
               <div className="flex items-center gap-4">
                 <div className="text-right">
                   <div className="text-lg font-black text-[#0A192F]">
-                    {inv.total.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
+                    {inv.total.toLocaleString('es-ES', { minimumFractionDigits: 2 })} $
                   </div>
                   <div className="text-[11px] text-slate-500 font-medium">Emisión: {inv.issueDate}</div>
                 </div>
@@ -190,41 +235,13 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
               </div>
             </div>
 
-            {/* Milestones if present */}
-            {inv.milestones && (
-              <div className="bg-[#FAF8F5] p-3 rounded-xl space-y-1.5 text-xs">
-                <div className="text-[10px] font-extrabold uppercase tracking-wider text-[#0A192F]">
-                  Hitos de Pago de la Obra:
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {inv.milestones.map((m, idx) => (
-                    <div
-                      key={idx}
-                      className={`p-2 rounded-lg flex items-center justify-between ${
-                        m.isPaid
-                          ? 'bg-emerald-50 text-emerald-800 font-bold'
-                          : 'bg-white text-slate-700 font-medium border border-stone-200'
-                      }`}
-                    >
-                      <div>
-                        <div className="font-extrabold text-[11px]">{m.description}</div>
-                        <div className="text-[10px]">{m.amount.toFixed(2)} €</div>
-                      </div>
-                      {m.isPaid ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
-                      ) : (
-                        <Clock className="w-4 h-4 text-[#800020] shrink-0" />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* Actions */}
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-100">
               <button
-                onClick={() => setPrintInvoice(inv)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPrintInvoice(inv);
+                }}
                 className="px-3 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-[#0A192F] text-xs font-bold flex items-center gap-1 cursor-pointer"
               >
                 <Printer className="w-3.5 h-3.5 text-[#800020]" />
@@ -233,7 +250,12 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
 
               {inv.status !== 'pagada' && (
                 <button
-                  onClick={() => onMarkInvoicePaid(inv.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onMarkInvoicePaid(inv.id).catch((err) =>
+                      console.error('No se pudo marcar como cobrada.', err)
+                    );
+                  }}
                   className="px-3 py-1.5 rounded-lg bg-[#800020] hover:bg-[#66001a] text-white text-xs font-bold flex items-center gap-1 cursor-pointer"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
@@ -248,7 +270,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
       {/* Modal for New Invoice */}
       {isNewInvoiceOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl p-6 space-y-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-4xl rounded-2xl shadow-2xl p-6 space-y-4 max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="font-bold text-base text-white flex items-center gap-2">
                 <Receipt className="w-5 h-5 text-amber-400" />
@@ -259,65 +281,196 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleCreateInvoiceSubmit} className="space-y-4 text-xs">
-              <div>
-                <label className="block text-slate-300 font-bold mb-1">Cliente</label>
-                <select
-                  value={selectedClientId}
-                  onChange={(e) => setSelectedClientId(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
-                >
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.city})
-                    </option>
-                  ))}
-                </select>
+            <div className="text-xs">
+              <label className="block text-slate-300 font-bold mb-1">Obra</label>
+              <select
+                value={selectedOrderId}
+                onChange={(e) => setSelectedOrderId(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
+              >
+                {workOrders.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.orderNumber} - {w.title} ({w.budgetTotal.toLocaleString('es-ES')} $ presupuesto)
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Detalle completo de la obra: partidas, notas y estado de cobro */}
+              <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 space-y-3 text-xs">
+                <div className="text-[10px] font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5" />
+                  <span>Detalle de la Obra</span>
+                </div>
+
+                {isLoadingOrderDetail && (
+                  <div className="flex items-center justify-center py-8 text-slate-500">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  </div>
+                )}
+
+                {orderDetailError && (
+                  <div className="text-red-400 bg-red-950/40 border border-red-900 rounded-lg p-2.5">
+                    {orderDetailError}
+                  </div>
+                )}
+
+                {orderDetail && !isLoadingOrderDetail && (
+                  <>
+                    <div className="flex items-center gap-1.5 text-slate-300">
+                      <User className="w-3.5 h-3.5 text-slate-500" />
+                      <span className="font-bold text-white">{orderDetail.customerName}</span>
+                      {orderDetail.customerPhone && <span>· {orderDetail.customerPhone}</span>}
+                    </div>
+
+                    <div className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-lg p-2.5">
+                      <div>
+                        <div className="text-[10px] text-slate-500 uppercase font-bold">Total Obra</div>
+                        <div className="font-black text-white">{orderDetail.total.toFixed(2)} $</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-slate-500 uppercase font-bold">Cobrado</div>
+                        <div className="font-black text-emerald-400">{orderDetail.amountPaid.toFixed(2)} $</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-slate-500 uppercase font-bold">Saldo</div>
+                        <div className="font-black text-amber-400">{orderDetail.balanceDue.toFixed(2)} $</div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        Ítems ({orderDetail.items.length})
+                      </div>
+                      <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                        {orderDetail.items.length === 0 ? (
+                          <p className="text-slate-500 italic">Sin ítems.</p>
+                        ) : (
+                          orderDetail.items.map((it) => (
+                            <div
+                              key={it.id}
+                              className="bg-slate-900 border border-slate-800 rounded-lg p-2 flex items-center justify-between gap-2"
+                            >
+                              <div className="min-w-0">
+                                <div className="text-slate-200 font-semibold truncate">{it.productName}</div>
+                                <div className="text-[10px] text-slate-500">
+                                  {it.quantity} {it.unit} × {it.unitPrice.toFixed(2)} $
+                                  {it.category && <span> · {it.category}</span>}
+                                </div>
+                              </div>
+                              <div className="text-slate-200 font-bold shrink-0">{it.subtotal.toFixed(2)} $</div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                        <MessageSquare className="w-3 h-3" />
+                        <span>Notas ({orderDetail.notes.length})</span>
+                      </div>
+                      <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
+                        {orderDetail.notes.length === 0 ? (
+                          <p className="text-slate-500 italic">Sin notas.</p>
+                        ) : (
+                          orderDetail.notes.map((n, i) => (
+                            <div key={i} className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5">
+                              <div className="flex items-center justify-between text-[10px] text-slate-500 mb-0.5">
+                                <span className="font-bold text-amber-400">{n.authorEmail || 'Sistema'}</span>
+                                <span>{new Date(n.date).toLocaleDateString('es-ES')}</span>
+                              </div>
+                              <p className="text-slate-300 whitespace-pre-wrap">{n.text}</p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
-              <div>
-                <label className="block text-slate-300 font-bold mb-1">Concepto Factura</label>
-                <input
-                  type="text"
-                  value={concept}
-                  onChange={(e) => setConcept(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
-                />
-              </div>
+              {/* Datos de la factura */}
+              <form onSubmit={handleCreateInvoiceSubmit} className="space-y-4 text-xs">
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Concepto Factura</label>
+                  <input
+                    type="text"
+                    value={concept}
+                    onChange={(e) => setConcept(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-slate-300 font-bold mb-1">Base Imponible (€)</label>
-                <input
-                  type="number"
-                  value={subtotal}
-                  onChange={(e) => setSubtotal(parseFloat(e.target.value) || 0)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
-                />
-              </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1">
+                      Base Imponible ($)
+                      {orderDetail && (
+                        <span className="text-slate-500 font-normal normal-case">
+                          {' '}
+                          · saldo pendiente: {orderDetail.balanceDue.toFixed(2)} $
+                        </span>
+                      )}
+                    </label>
+                    <input
+                      type="number"
+                      value={subtotal}
+                      onChange={(e) => setSubtotal(parseFloat(e.target.value) || 0)}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1">IVA (%)</label>
+                    <input
+                      type="number"
+                      value={taxRate}
+                      onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
+                    />
+                  </div>
+                </div>
 
-              <div className="bg-slate-800 p-3 rounded-xl text-right">
-                <span className="text-slate-400">Total con 21% IVA:</span>
-                <span className="text-lg font-black text-amber-400 ml-2">
-                  {(subtotal * 1.21).toFixed(2)} €
-                </span>
-              </div>
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Fecha de Vencimiento</label>
+                  <input
+                    type="date"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
+                  />
+                </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsNewInvoiceOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 font-semibold"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold"
-                >
-                  Emitir Factura
-                </button>
-              </div>
-            </form>
+                <div className="bg-slate-800 p-3 rounded-xl text-right">
+                  <span className="text-slate-400">Total con {taxRate}% IVA:</span>
+                  <span className="text-lg font-black text-amber-400 ml-2">
+                    {(subtotal * (1 + taxRate / 100)).toFixed(2)} $
+                  </span>
+                </div>
+
+                {invoiceError && (
+                  <div className="text-red-400 bg-red-950/40 border border-red-900 rounded-xl p-2.5">{invoiceError}</div>
+                )}
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setIsNewInvoiceOpen(false)}
+                    className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 font-semibold"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingInvoice || !workOrders.length}
+                    className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold"
+                  >
+                    {isSavingInvoice ? 'Emitiendo...' : 'Emitir Factura'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}
@@ -328,7 +481,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
           <div className="bg-white text-slate-900 w-full max-w-2xl rounded-2xl shadow-2xl p-8 space-y-6 font-sans overflow-y-auto max-h-[90vh]">
             <div className="flex justify-between items-start border-b-2 border-emerald-500 pb-4">
               <div>
-                <h2 className="text-xl font-black text-slate-900">REFORMA LUX S.L.</h2>
+                <h2 className="text-xl font-black text-slate-900">FVJ REMODELACIONES S.L.</h2>
                 <p className="text-xs text-slate-500">Factura de Remodelaciones de Interiores</p>
               </div>
               <div className="text-right">
@@ -346,19 +499,33 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
               <div className="font-bold text-slate-900 text-sm">{printInvoice.concept}</div>
               <div className="flex justify-between pt-2 border-t text-slate-700">
                 <span>Base Imponible:</span>
-                <span>{printInvoice.subtotal.toFixed(2)} €</span>
+                <span>{printInvoice.subtotal.toFixed(2)} $</span>
               </div>
               <div className="flex justify-between text-slate-700">
                 <span>IVA 21%:</span>
-                <span>{printInvoice.taxAmount.toFixed(2)} €</span>
+                <span>{printInvoice.taxAmount.toFixed(2)} $</span>
               </div>
               <div className="flex justify-between text-base font-black text-slate-900 pt-2 border-t-2 border-slate-900">
                 <span>TOTAL FACTURA:</span>
-                <span className="text-emerald-600">{printInvoice.total.toFixed(2)} €</span>
+                <span className="text-emerald-600">{printInvoice.total.toFixed(2)} $</span>
               </div>
             </div>
 
-            <div className="flex justify-between items-center pt-4 border-t">
+            {/* Notas — visibles en pantalla, no en el documento impreso/PDF */}
+            <div className="print:hidden space-y-2">
+              <div className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <Receipt className="w-3.5 h-3.5 text-[#800020]" />
+                <span>Notas ({printInvoice.notes.length})</span>
+              </div>
+              <div className="bg-slate-900 rounded-xl p-4">
+                <NotesThread
+                  notes={printInvoice.notes}
+                  onAddNote={(text) => onAddInvoiceNote(printInvoice.id, text)}
+                />
+              </div>
+            </div>
+
+            <div className="print:hidden flex justify-between items-center pt-4 border-t">
               <button
                 onClick={() => window.print()}
                 className="px-4 py-2 rounded-xl bg-slate-900 text-white font-bold text-xs"

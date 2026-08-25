@@ -5,16 +5,19 @@ import {
   Plus,
   Search,
   Bell,
+  BellRing,
   Calendar,
   Package,
   Share2,
   FileText,
   LayoutGrid,
   ChevronDown,
-  Globe,
-  LogOut,
+  Loader2,
 } from 'lucide-react';
 import { Profile } from '../../lib/api';
+import { AppNotification } from '../../lib/notifications';
+import { useNotifications } from '../../hooks/useNotifications';
+import { getPermission, getSubscription, pushSupported, subscribeToPush } from '../../lib/push';
 
 interface NavbarProps {
   searchTerm: string;
@@ -27,7 +30,7 @@ interface NavbarProps {
   onToggleMenu: () => void;
   onSwitchToPublic?: () => void;
   currentUser?: Profile | null;
-  onLogout?: () => void;
+  onNotificationClick: (notification: AppNotification) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -41,17 +44,52 @@ export const Navbar: React.FC<NavbarProps> = ({
   onToggleMenu,
   onSwitchToPublic,
   currentUser,
-  onLogout,
+  onNotificationClick,
 }) => {
 
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const plusMenuRef = useRef<HTMLDivElement>(null);
 
-  // Close plus popover on click outside
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+  const { notifications, markRead } = useNotifications(!!currentUser);
+
+  // null mientras se resuelve; true solo si el dispositivo puede recibir
+  // push y todavía no está suscrito — evita ofrecer "Activar" de más.
+  const [canEnablePush, setCanEnablePush] = useState(false);
+  const [enablingPush, setEnablingPush] = useState(false);
+
+  useEffect(() => {
+    if (!isNotifOpen || !pushSupported() || getPermission() === 'denied') return;
+    getSubscription().then((sub) => setCanEnablePush(!sub));
+  }, [isNotifOpen]);
+
+  const handleEnablePush = async () => {
+    if (enablingPush) return;
+    setEnablingPush(true);
+    try {
+      if (await subscribeToPush()) setCanEnablePush(false);
+    } catch {
+      /* silencioso: el bell no debe romperse si el navegador niega el permiso */
+    } finally {
+      setEnablingPush(false);
+    }
+  };
+
+  const handleOpenNotification = (n: AppNotification) => {
+    if (!n.is_read) markRead(n.id);
+    setIsNotifOpen(false);
+    onNotificationClick(n);
+  };
+
+  // Close popovers on click outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (plusMenuRef.current && !plusMenuRef.current.contains(event.target as Node)) {
         setIsPlusMenuOpen(false);
+      }
+      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
+        setIsNotifOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -63,7 +101,11 @@ export const Navbar: React.FC<NavbarProps> = ({
       <div className="flex items-center justify-between gap-4">
         {/* Left: Brand & Title */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2.5">
+          <button
+            onClick={onSwitchToPublic}
+            className="flex items-center gap-2.5 cursor-pointer text-left"
+            title="Ir a la página de inicio"
+          >
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-black text-lg tracking-wider uppercase text-white">
@@ -76,7 +118,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </h1>
               )}
             </div>
-          </div>
+          </button>
         </div>
 
         {/* Center Search Bar */}
@@ -99,28 +141,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="hidden md:inline text-[11px] text-stone-300 font-medium">
               {currentUser.first_name || currentUser.email}
             </span>
-          )}
-
-          {onLogout && (
-            <button
-              onClick={onLogout}
-              className="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-stone-300 hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer"
-              title="Cerrar sesión"
-            >
-              <LogOut className="w-4 h-4" />
-              <span className="hidden sm:inline text-xs font-semibold">Salir</span>
-            </button>
-          )}
-
-          {onSwitchToPublic && (
-            <button
-              onClick={onSwitchToPublic}
-              className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-stone-200 hover:text-white font-bold text-xs border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-              title="Ver Landing Page pública para clientes"
-            >
-              <Globe className="w-4 h-4 text-stone-300" />
-              <span className="hidden sm:inline">Ver Web Pública</span>
-            </button>
           )}
 
           {/* '+' Button with Toggle Selection (Presupuesto | Visita) */}
@@ -192,16 +212,78 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span>Material</span>
           </button>
 
-          {/* Social feed status indicator */}
-          <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1.5 bg-stone-800/80 border border-stone-700/60 rounded-xl text-xs text-stone-200">
-            <span className="font-semibold text-[11px]">TikTok / IG Activo</span>
-          </div>
-
           {/* Notification bell */}
-          <button className="relative p-2 rounded-xl bg-slate-800/80 text-stone-300 hover:text-white hover:bg-slate-700 transition-colors">
-            <Bell className="w-4 h-4" />
-            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#580812]"></span>
-          </button>
+          <div className="relative" ref={notifRef}>
+            <button
+              onClick={() => setIsNotifOpen(!isNotifOpen)}
+              className={`relative p-2 rounded-xl transition-colors cursor-pointer ${
+                isNotifOpen
+                  ? 'bg-[#580812] text-white'
+                  : 'bg-slate-800/80 text-stone-300 hover:text-white hover:bg-slate-700'
+              }`}
+              title="Notificaciones"
+              aria-label="Ver notificaciones"
+            >
+              <Bell className="w-4 h-4" />
+              {notifications.length > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-[#580812] text-white text-[9px] font-black flex items-center justify-center">
+                  {notifications.length > 9 ? '9+' : notifications.length}
+                </span>
+              )}
+            </button>
+
+            {isNotifOpen && (
+              <div className="absolute right-0 mt-2 w-80 max-w-[90vw] bg-white text-slate-900 rounded-2xl shadow-2xl border border-stone-200 z-50 animate-in fade-in slide-in-from-top-2 duration-150 overflow-hidden">
+                <div className="px-4 py-3 border-b border-stone-100 flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    Notificaciones
+                  </span>
+                  {notifications.length > 0 && (
+                    <span className="text-[10px] font-bold text-[#580812]">
+                      {notifications.length} sin leer
+                    </span>
+                  )}
+                </div>
+
+                {canEnablePush && (
+                  <div className="mx-3 mt-3 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2.5 flex items-center gap-2.5">
+                    <BellRing className="w-4 h-4 text-slate-500 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[11px] font-bold text-[#0A192F]">Avisos en este dispositivo</div>
+                      <div className="text-[10px] text-slate-500">Nuevas visitas y presupuestos al instante.</div>
+                    </div>
+                    <button
+                      onClick={handleEnablePush}
+                      disabled={enablingPush}
+                      className="shrink-0 text-[10px] font-bold uppercase tracking-wide px-2.5 py-1.5 rounded-lg bg-[#0A192F] text-white disabled:opacity-40 cursor-pointer"
+                    >
+                      {enablingPush ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Activar'}
+                    </button>
+                  </div>
+                )}
+
+                <div className="max-h-96 overflow-y-auto p-2">
+                  {notifications.length === 0 ? (
+                    <div className="text-center py-8 text-xs text-slate-400">Sin notificaciones nuevas</div>
+                  ) : (
+                    notifications.map((n) => (
+                      <button
+                        key={n.id}
+                        onClick={() => handleOpenNotification(n)}
+                        className="w-full text-left flex items-start gap-2.5 p-2.5 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#580812] mt-1.5 shrink-0" />
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-[#0A192F] truncate">{n.title}</div>
+                          {n.body && <div className="text-[11px] text-slate-500 line-clamp-2">{n.body}</div>}
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Apps Menu Icon (Replaces RL avatar on far right) */}
           <button

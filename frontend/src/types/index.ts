@@ -1,12 +1,20 @@
 export type ProjectType = 'baño' | 'cocina' | 'integral' | 'aseo';
 
-export type EstimateStatus = 'borrador' | 'enviado' | 'aprobado' | 'rechazado';
+export type EstimateStatus = 'borrador' | 'enviado' | 'aprobado' | 'rechazado' | 'vencida';
 
 export type WorkOrderStatus = 'planificacion' | 'en_progreso' | 'pausado' | 'completado';
 
 export type InvoiceStatus = 'borrador' | 'pendiente' | 'pagada' | 'vencida';
 
 export type MaterialCategory = 'griferia_sanitarios' | 'azulejos_pavimentos' | 'muebles_encimeras' | 'fontaneria_electricidad' | 'electrodomesticos' | 'herramientas_varios';
+
+// Hilo de notas: lista de mensajes con quién y cuándo, no un bloque de
+// texto que se sobrescribe. authorEmail null = nota automática del sistema.
+export interface NoteEntry {
+  authorEmail: string | null;
+  text: string;
+  date: string;
+}
 
 export interface Client {
   id: string;
@@ -17,7 +25,7 @@ export interface Client {
   city: string;
   avatar?: string;
   tags: string[];
-  notes?: string;
+  notes: NoteEntry[];
   createdAt: string;
   preferredContact: 'whatsapp' | 'email' | 'phone';
 }
@@ -39,6 +47,7 @@ export interface Estimate {
   clientId: string;
   clientName: string;
   clientPhone: string;
+  clientEmail?: string;
   clientAddress: string;
   projectType: ProjectType;
   title: string;
@@ -52,8 +61,9 @@ export interface Estimate {
   total: number;
   estimatedCost: number;
   estimatedMargin: number;
-  notes?: string;
+  notes: NoteEntry[];
   terms?: string;
+  orderId?: string; // se llena al aprobarse (Quotation.order) — habilita "Crear Orden Obra"
 }
 
 export interface WorkOrderStage {
@@ -74,6 +84,7 @@ export interface WorkOrderPhoto {
 
 export interface WorkOrder {
   id: string;
+  orderId?: string; // Order.id real (evz_store) — hace falta para crear hitos de pago sobre esta obra
   orderNumber: string;
   estimateId?: string;
   clientId: string;
@@ -87,11 +98,13 @@ export interface WorkOrder {
   expectedEndDate: string;
   actualEndDate?: string;
   assignedTeam: string[];
+  assignedTeamIds: string[];
   progressPercentage: number;
   stages: WorkOrderStage[];
   photos: WorkOrderPhoto[];
   budgetTotal: number;
   actualCost: number;
+  notes: NoteEntry[];
 }
 
 export interface InvoiceMilestone {
@@ -120,13 +133,14 @@ export interface Invoice {
   total: number;
   paidAmount: number;
   milestones?: InvoiceMilestone[];
-  notes?: string;
+  notes: NoteEntry[];
 }
 
 export interface MaterialPurchase {
   id: string;
   purchaseNumber: string;
   supplierName: string;
+  supplierId?: string;
   workOrderId?: string;
   workOrderTitle?: string;
   category: MaterialCategory;
@@ -139,6 +153,25 @@ export interface MaterialPurchase {
   status: 'solicitado' | 'en_transito' | 'recibido' | 'devuelto';
   receiptUrl?: string;
   invoiceReference?: string;
+  isPaid: boolean;
+}
+
+export interface Supplier {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  address: string;
+  city: string;
+  taxId: string;
+  notes: NoteEntry[];
+}
+
+export interface VisitPhoto {
+  id: string;
+  url: string;
+  caption: string;
+  uploadedAt: string;
 }
 
 export interface CalendarEvent {
@@ -148,14 +181,20 @@ export interface CalendarEvent {
   clientId?: string;
   clientName?: string;
   clientPhone?: string;
+  clientEmail?: string;
   workOrderId?: string;
   address: string;
   date: string; // YYYY-MM-DD
   startTime: string; // HH:mm
   endTime: string; // HH:mm
   description?: string;
-  notes?: string;
+  notes: NoteEntry[];
+  photos: VisitPhoto[];
   assignedTo?: string;
+  teamMemberId?: string;
+  // 'pending' = reserva de un guest sin confirmar todavía (requiere que el
+  // operador la confirme y asigne un empleado).
+  status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   completed: boolean;
 }
 
@@ -201,7 +240,7 @@ export interface EmployeeExpense {
   concept: string;
   amount: number;
   category: ExpenseCategory;
-  status: 'pendiente' | 'aprobado' | 'reembolsado';
+  status: 'pendiente' | 'aprobado' | 'reembolsado' | 'rechazado';
   workOrderId?: string;
   workOrderTitle?: string;
   receiptNote?: string;
@@ -227,12 +266,19 @@ export interface Employee {
   email: string;
   avatar?: string;
   salaryType: 'mensual' | 'por_hora' | 'por_obra';
-  salaryAmount: number; // e.g. 2100 €/mes or 18 €/hora
-  activeAssignments: EmployeeAssignment[];
+  salaryAmount: number; // e.g. 2100 $/mes or 18 $/hora
+  // Las asignaciones activas (obras/visitas) no viven acá: se derivan de
+  // WorkOrder.assignedTeamIds y CalendarEvent.teamMemberId, que son la
+  // fuente real — ver EmployeesView.getAssignmentsForEmployee. Guardar una
+  // copia aparte fue justo el bug de "el empleado asignado no permanece":
+  // esta lista nunca se sincronizaba con el backend.
   expenses: EmployeeExpense[];
   status: 'activo' | 'de_baja' | 'vacaciones';
   startDate: string;
-  notes?: string;
+  // Texto libre de presentación (certificaciones, observaciones) — distinto
+  // del hilo de notas de abajo, que es un registro de eventos con autor y fecha.
+  bio?: string;
+  notes: NoteEntry[];
 }
 
 export interface PublicReview {
@@ -268,6 +314,7 @@ export interface WebsiteProject {
   description: string;
   isFeatured: boolean;
   visibleOnWebsite: boolean;
+  workOrderId?: string;
   createdAt: string;
 }
 
@@ -282,7 +329,7 @@ export interface CompanyData {
   schedule: string;
   socialInstagram: string;
   socialTikTok: string;
-  copyright: string;
+  logoUrl?: string;
 }
 
 

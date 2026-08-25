@@ -4,11 +4,9 @@ import {
   Video,
   FolderPlus,
   Building2,
-  Code2,
   Upload,
   CheckCircle2,
   XCircle,
-  Play,
   Trash2,
   Edit2,
   Plus,
@@ -19,13 +17,8 @@ import {
   Mail,
   MapPin,
   Clock,
-  Instagram,
-  Share2,
   Save,
   Info,
-  Sparkles,
-  FileCode,
-  ArrowRight,
   VideoOff,
 } from 'lucide-react';
 import {
@@ -33,24 +26,30 @@ import {
   WebsiteProject,
   CompanyData,
   ProjectType,
+  WorkOrder,
 } from '../../types';
+import { WebsiteProjectInput } from '../../lib/showcase';
+import { CompanyDataInput } from '../../lib/business';
+import { ApiError } from '../../lib/api';
 
 interface WebsiteCmsViewProps {
   heroConfig: WebsiteHeroConfig;
-  onUpdateHeroConfig: (config: WebsiteHeroConfig) => void;
+  onUpdateHeroConfig: (config: WebsiteHeroConfig) => Promise<void>;
   projects: WebsiteProject[];
-  onAddProject: (project: WebsiteProject) => void;
-  onUpdateProject: (id: string, updated: Partial<WebsiteProject>) => void;
-  onDeleteProject: (id: string) => void;
-  onSetFeaturedProject: (id: string) => void;
+  workOrders: WorkOrder[];
+  onAddProject: (input: WebsiteProjectInput) => Promise<void>;
+  onUpdateProject: (id: string, input: Partial<WebsiteProjectInput>) => Promise<void>;
+  onDeleteProject: (id: string) => Promise<void>;
+  onSetFeaturedProject: (id: string) => Promise<void>;
   companyData: CompanyData;
-  onUpdateCompanyData: (data: CompanyData) => void;
+  onUpdateCompanyData: (data: CompanyDataInput) => Promise<void>;
 }
 
 export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
   heroConfig,
   onUpdateHeroConfig,
   projects,
+  workOrders,
   onAddProject,
   onUpdateProject,
   onDeleteProject,
@@ -58,7 +57,7 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
   companyData,
   onUpdateCompanyData,
 }) => {
-  const [activeTab, setActiveTab] = useState<'video' | 'projects' | 'company' | 'api_docs'>('video');
+  const [activeTab, setActiveTab] = useState<'video' | 'projects' | 'company'>('video');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Video Form State
@@ -66,6 +65,8 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
   const [videoTitleInput, setVideoTitleInput] = useState(heroConfig.videoTitle || '');
   const [videoSubtitleInput, setVideoSubtitleInput] = useState(heroConfig.videoSubtitle || '');
   const [showVideoToggle, setShowVideoToggle] = useState(heroConfig.showVideo);
+  const [isSavingVideo, setIsSavingVideo] = useState(false);
+  const [videoError, setVideoError] = useState('');
 
   // Project Modal / Editing State
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
@@ -75,57 +76,64 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
   const [projLocation, setProjLocation] = useState('');
   const [projExecutionTime, setProjExecutionTime] = useState('');
   const [projType, setProjType] = useState<ProjectType>('baño');
-  const [projImageUrl, setProjImageUrl] = useState('');
+  const [projImageFile, setProjImageFile] = useState<File | null>(null);
+  const [projImagePreview, setProjImagePreview] = useState('');
   const [projDescription, setProjDescription] = useState('');
   const [projIsFeatured, setProjIsFeatured] = useState(false);
   const [projVisible, setProjVisible] = useState(true);
+  const [projWorkOrderId, setProjWorkOrderId] = useState('');
+  const [isSavingProject, setIsSavingProject] = useState(false);
+  const [projectError, setProjectError] = useState('');
 
   // Company Form State
   const [companyForm, setCompanyForm] = useState<CompanyData>({ ...companyData });
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [isSavingCompany, setIsSavingCompany] = useState(false);
+  const [companyError, setCompanyError] = useState('');
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Video Upload / Change Handlers
-  const handleSaveVideoHero = () => {
-    onUpdateHeroConfig({
-      videoUrl: videoUrlInput.trim(),
-      videoTitle: videoTitleInput.trim(),
-      videoSubtitle: videoSubtitleInput.trim(),
-      showVideo: showVideoToggle,
-      autoPlay: true,
-      muted: true,
-    });
-    showToast('¡Configuración de vídeo de portada guardada correctamente!');
-  };
-
-  const handleFileUploadVideo = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const videoObjectUrl = URL.createObjectURL(file);
-      setVideoUrlInput(videoObjectUrl);
-      setShowVideoToggle(true);
-      showToast(`Archivo "${file.name}" cargado listo para vista previa.`);
+  // Video Handlers
+  const handleSaveVideoHero = async () => {
+    setVideoError('');
+    setIsSavingVideo(true);
+    try {
+      await onUpdateHeroConfig({
+        videoUrl: videoUrlInput.trim(),
+        videoTitle: videoTitleInput.trim(),
+        videoSubtitle: videoSubtitleInput.trim(),
+        showVideo: showVideoToggle,
+        autoPlay: true,
+        muted: true,
+      });
+      showToast('¡Configuración de vídeo de portada guardada correctamente!');
+    } catch (err) {
+      setVideoError(err instanceof ApiError ? err.message : 'No se pudo guardar el vídeo de portada.');
+    } finally {
+      setIsSavingVideo(false);
     }
   };
 
-  const handleClearVideo = () => {
-    setVideoUrlInput('');
-    setShowVideoToggle(false);
-    onUpdateHeroConfig({
-      ...heroConfig,
-      videoUrl: '',
-      showVideo: false,
-    });
-    showToast('Vídeo eliminado. La web mostrará ahora el Proyecto Destacado.');
-  };
-
-  const handleLoadSampleVideo = (url: string) => {
-    setVideoUrlInput(url);
-    setShowVideoToggle(true);
-    showToast('Vídeo de demostración cargado correctamente.');
+  const handleClearVideo = async () => {
+    setVideoError('');
+    setIsSavingVideo(true);
+    try {
+      await onUpdateHeroConfig({
+        ...heroConfig,
+        videoUrl: '',
+        showVideo: false,
+      });
+      setVideoUrlInput('');
+      setShowVideoToggle(false);
+      showToast('Vídeo eliminado. La web mostrará ahora el Proyecto Destacado.');
+    } catch (err) {
+      setVideoError(err instanceof ApiError ? err.message : 'No se pudo eliminar el vídeo.');
+    } finally {
+      setIsSavingVideo(false);
+    }
   };
 
   // Project Handlers
@@ -136,10 +144,13 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
     setProjLocation('');
     setProjExecutionTime('');
     setProjType('baño');
-    setProjImageUrl('');
+    setProjImageFile(null);
+    setProjImagePreview('');
     setProjDescription('');
     setProjIsFeatured(false);
     setProjVisible(true);
+    setProjWorkOrderId('');
+    setProjectError('');
     setIsProjectModalOpen(true);
   };
 
@@ -150,79 +161,116 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
     setProjLocation(proj.location);
     setProjExecutionTime(proj.executionTime);
     setProjType(proj.projectType);
-    setProjImageUrl(proj.imageUrl);
+    setProjImageFile(null);
+    setProjImagePreview(proj.imageUrl);
     setProjDescription(proj.description);
     setProjIsFeatured(proj.isFeatured);
     setProjVisible(proj.visibleOnWebsite);
+    setProjWorkOrderId(proj.workOrderId || '');
+    setProjectError('');
     setIsProjectModalOpen(true);
-  };
-
-  const handleSaveProjectModal = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!projTitle.trim()) return;
-
-    const defaultImg =
-      projImageUrl.trim() ||
-      (projType === 'baño'
-        ? 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=800&q=80'
-        : projType === 'cocina'
-        ? 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80'
-        : 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=800&q=80');
-
-    if (editingProjectId) {
-      onUpdateProject(editingProjectId, {
-        title: projTitle.trim(),
-        subtitle: projSubtitle.trim(),
-        location: projLocation.trim() || 'Madrid / Barcelona',
-        executionTime: projExecutionTime.trim() || '7 días de obra',
-        projectType: projType,
-        imageUrl: defaultImg,
-        description: projDescription.trim(),
-        isFeatured: projIsFeatured,
-        visibleOnWebsite: projVisible,
-      });
-      if (projIsFeatured) {
-        onSetFeaturedProject(editingProjectId);
-      }
-      showToast('Proyecto actualizado con éxito');
-    } else {
-      const newPId = `wproj-${Date.now()}`;
-      const newProj: WebsiteProject = {
-        id: newPId,
-        title: projTitle.trim(),
-        subtitle: projSubtitle.trim() || `Reforma de ${projType}`,
-        location: projLocation.trim() || 'Barcelona',
-        executionTime: projExecutionTime.trim() || '5 días de obra',
-        projectType: projType,
-        imageUrl: defaultImg,
-        description: projDescription.trim() || 'Proyecto de remodelación de alta calidad.',
-        isFeatured: projIsFeatured,
-        visibleOnWebsite: projVisible,
-        createdAt: new Date().toISOString().split('T')[0],
-      };
-      onAddProject(newProj);
-      if (projIsFeatured) {
-        onSetFeaturedProject(newPId);
-      }
-      showToast('Nuevo proyecto añadido a la landing web');
-    }
-
-    setIsProjectModalOpen(false);
   };
 
   const handleProjectImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const imgObjectUrl = URL.createObjectURL(file);
-      setProjImageUrl(imgObjectUrl);
+      setProjImageFile(file);
+      setProjImagePreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleSaveProjectModal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!projTitle.trim()) return;
+
+    setProjectError('');
+    setIsSavingProject(true);
+    try {
+      const input: WebsiteProjectInput = {
+        title: projTitle.trim(),
+        subtitle: projSubtitle.trim(),
+        location: projLocation.trim(),
+        executionTime: projExecutionTime.trim(),
+        projectType: projType,
+        description: projDescription.trim(),
+        visibleOnWebsite: projVisible,
+        workOrderId: projWorkOrderId || undefined,
+        ...(projImageFile ? { image: projImageFile } : {}),
+      };
+
+      if (editingProjectId) {
+        await onUpdateProject(editingProjectId, input);
+        if (projIsFeatured) await onSetFeaturedProject(editingProjectId);
+        showToast('Proyecto actualizado con éxito');
+      } else {
+        await onAddProject(input);
+        showToast('Nuevo proyecto añadido a la landing web');
+      }
+      setIsProjectModalOpen(false);
+    } catch (err) {
+      setProjectError(err instanceof ApiError ? err.message : 'No se pudo guardar el proyecto.');
+    } finally {
+      setIsSavingProject(false);
+    }
+  };
+
+  const handleToggleVisible = async (proj: WebsiteProject) => {
+    try {
+      await onUpdateProject(proj.id, { visibleOnWebsite: !proj.visibleOnWebsite });
+    } catch (err) {
+      console.error('No se pudo cambiar la visibilidad del proyecto.', err);
+    }
+  };
+
+  const handleDeleteProject = async (proj: WebsiteProject) => {
+    if (!confirm(`¿Eliminar proyecto "${proj.title}" de la web?`)) return;
+    try {
+      await onDeleteProject(proj.id);
+      showToast('Proyecto eliminado.');
+    } catch (err) {
+      console.error('No se pudo eliminar el proyecto.', err);
+    }
+  };
+
+  const handleSetFeatured = async (proj: WebsiteProject) => {
+    try {
+      await onSetFeaturedProject(proj.id);
+    } catch (err) {
+      console.error('No se pudo destacar el proyecto.', err);
     }
   };
 
   // Company Data Save Handler
-  const handleSaveCompanyData = (e: React.FormEvent) => {
+  const handleCompanyLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) setLogoFile(file);
+  };
+
+  const handleSaveCompanyData = async (e: React.FormEvent) => {
     e.preventDefault();
-    onUpdateCompanyData(companyForm);
-    showToast('Datos de la empresa actualizados. Visibles inmediatamente en el Footer.');
+    setCompanyError('');
+    setIsSavingCompany(true);
+    try {
+      await onUpdateCompanyData({
+        companyName: companyForm.companyName,
+        slogan: companyForm.slogan,
+        phone: companyForm.phone,
+        email: companyForm.email,
+        address: companyForm.address,
+        city: companyForm.city,
+        cif: companyForm.cif,
+        schedule: companyForm.schedule,
+        socialInstagram: companyForm.socialInstagram,
+        socialTikTok: companyForm.socialTikTok,
+        ...(logoFile ? { logo: logoFile } : {}),
+      });
+      setLogoFile(null);
+      showToast('Datos de la empresa actualizados. Visibles inmediatamente en el Footer.');
+    } catch (err) {
+      setCompanyError(err instanceof ApiError ? err.message : 'No se pudieron guardar los datos de la empresa.');
+    } finally {
+      setIsSavingCompany(false);
+    }
   };
 
   const featuredProject = projects.find((p) => p.isFeatured) || projects[0];
@@ -240,7 +288,7 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
       {/* Header Banner */}
       <div className="bg-[#0A192F] text-white rounded-2xl p-6 sm:p-8 shadow-xl relative overflow-hidden border border-white/10">
         <div className="absolute top-0 right-0 w-96 h-96 bg-[#580812]/30 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
-        
+
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-stone-200 text-xs font-semibold mb-3">
@@ -251,7 +299,7 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
               Control de Vídeo, Proyectos y Footer
             </h1>
             <p className="text-stone-300 text-xs sm:text-sm mt-1 max-w-2xl leading-relaxed">
-              Administra el vídeo de portada hero, el portafolio de obras publicadas y los datos corporativos del pie de página. Incluye simuladores de endpoint para conectar con tu backend posteriormente.
+              Administra el vídeo de portada hero, el portafolio de obras publicadas y los datos corporativos del pie de página.
             </p>
           </div>
 
@@ -327,18 +375,6 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
           <Building2 className="w-4 h-4" />
           <span>3. Datos Empresa (Footer)</span>
         </button>
-
-        <button
-          onClick={() => setActiveTab('api_docs')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'api_docs'
-              ? 'bg-[#0A192F] text-white shadow-md shadow-[#0A192F]/30'
-              : 'bg-white text-slate-700 hover:bg-stone-100 border border-stone-200'
-          }`}
-        >
-          <Code2 className="w-4 h-4 text-amber-400" />
-          <span>4. Endpoints API Backend</span>
-        </button>
       </div>
 
       {/* TAB 1: COVER VIDEO */}
@@ -350,11 +386,8 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
               <div>
                 <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
                   <Video className="w-5 h-5 text-[#580812]" />
-                  Configuración y Endpoint del Vídeo de Portada
+                  Vídeo de Portada de la Landing
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Endpoint simulated: <code className="bg-stone-100 px-1.5 py-0.5 rounded text-[11px] text-slate-800 font-mono">POST /api/website/hero-video</code>
-                </p>
               </div>
 
               <div className="flex items-center gap-2">
@@ -372,39 +405,17 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
               <Info className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
               <div className="text-xs text-amber-900 leading-relaxed">
-                <p className="font-bold">Comportamiento del Fallback (Requisito):</p>
+                <p className="font-bold">Comportamiento del Fallback:</p>
                 <p className="mt-0.5">
                   Si no se especifica ningún URL de vídeo o si desactivas la opción, la portada de la web mostrará automáticamente la tarjeta del <strong>"Proyecto Destacado"</strong> con su fotografía, especificaciones de obra y botón de cita previa.
                 </p>
               </div>
             </div>
 
-            {/* File Upload Zone */}
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-slate-800">
-                Opción A: Cargar archivo de vídeo local (.mp4, .webm, .mov)
-              </label>
-              <div className="border-2 border-dashed border-stone-300 hover:border-[#580812] bg-[#FAF8F5] rounded-2xl p-6 text-center transition-all">
-                <Upload className="w-8 h-8 text-[#580812] mx-auto mb-2" />
-                <p className="text-xs font-bold text-slate-800">Arrastra o selecciona un archivo de vídeo</p>
-                <p className="text-[11px] text-slate-500 mt-1">Soporta MP4, WebM (Máx recomendado 50MB para carga fluida)</p>
-                <label className="mt-3 inline-flex items-center gap-2 bg-[#0A192F] hover:bg-[#580812] text-white px-4 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all">
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>Seleccionar Vídeo</span>
-                  <input
-                    type="file"
-                    accept="video/mp4,video/webm,video/quicktime"
-                    onChange={handleFileUploadVideo}
-                    className="hidden"
-                  />
-                </label>
-              </div>
-            </div>
-
             {/* URL Input */}
             <div className="space-y-2">
               <label className="block text-xs font-bold text-slate-800">
-                Opción B: URL remota del vídeo (CDN / Servidor)
+                URL del Vídeo (alojado externamente: CDN, YouTube, Vimeo...)
               </label>
               <input
                 type="url"
@@ -413,37 +424,6 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
                 placeholder="https://tuservidor.com/videos/hero_portada.mp4"
                 className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-[#580812] font-mono"
               />
-            </div>
-
-            {/* Sample presets */}
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-slate-700">Vídeos de muestra para prueba rápida:</label>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleLoadSampleVideo(
-                      'https://assets.mixkit.co/videos/preview/mixkit-modern-kitchen-interior-design-41566-large.mp4'
-                    )
-                  }
-                  className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 rounded-lg text-xs font-semibold text-slate-700 flex items-center gap-1.5 transition-all"
-                >
-                  <Play className="w-3 h-3 text-[#580812]" />
-                  <span>Muestra Cocina Lujo</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleLoadSampleVideo(
-                      'https://assets.mixkit.co/videos/preview/mixkit-luxurious-modern-bathroom-interior-41564-large.mp4'
-                    )
-                  }
-                  className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 rounded-lg text-xs font-semibold text-slate-700 flex items-center gap-1.5 transition-all"
-                >
-                  <Play className="w-3 h-3 text-[#580812]" />
-                  <span>Muestra Baño Walk-In</span>
-                </button>
-              </div>
             </div>
 
             {/* Title / Subtitle Overlays */}
@@ -474,12 +454,19 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
               </div>
             </div>
 
+            {videoError && (
+              <p className="text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                {videoError}
+              </p>
+            )}
+
             {/* Submit & Action Buttons */}
             <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-stone-200">
               <button
                 type="button"
                 onClick={handleClearVideo}
-                className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-bold flex items-center gap-2 transition-all"
+                disabled={isSavingVideo}
+                className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-bold flex items-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <VideoOff className="w-4 h-4" />
                 <span>Eliminar Vídeo (Usar Proyecto Destacado)</span>
@@ -488,10 +475,11 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
               <button
                 type="button"
                 onClick={handleSaveVideoHero}
-                className="px-6 py-2.5 bg-[#580812] hover:bg-rose-900 text-white rounded-xl text-xs font-black flex items-center gap-2 shadow-lg shadow-[#580812]/30 transition-all"
+                disabled={isSavingVideo}
+                className="px-6 py-2.5 bg-[#580812] hover:bg-rose-900 text-white rounded-xl text-xs font-black flex items-center gap-2 shadow-lg shadow-[#580812]/30 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <Save className="w-4 h-4" />
-                <span>Guardar Cambios de Vídeo</span>
+                <span>{isSavingVideo ? 'Guardando...' : 'Guardar Cambios de Vídeo'}</span>
               </button>
             </div>
           </div>
@@ -579,9 +567,6 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
                 <FolderPlus className="w-5 h-5 text-[#580812]" />
                 Catálogo de Proyectos para la Web
               </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Endpoints simulated: <code className="bg-stone-100 px-1 py-0.5 rounded font-mono">GET /api/website/projects</code> • <code className="bg-stone-100 px-1 py-0.5 rounded font-mono">POST /api/website/projects</code>
-              </p>
             </div>
 
             <button
@@ -605,11 +590,17 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
                 }`}
               >
                 <div className="relative aspect-video bg-slate-900">
-                  <img
-                    src={proj.imageUrl}
-                    alt={proj.title}
-                    className="w-full h-full object-cover"
-                  />
+                  {proj.imageUrl ? (
+                    <img
+                      src={proj.imageUrl}
+                      alt={proj.title}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-stone-500 text-xs font-bold">
+                      Sin fotografía
+                    </div>
+                  )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
 
                   <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
@@ -626,9 +617,7 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
 
                   <div className="absolute top-3 right-3">
                     <button
-                      onClick={() =>
-                        onUpdateProject(proj.id, { visibleOnWebsite: !proj.visibleOnWebsite })
-                      }
+                      onClick={() => handleToggleVisible(proj)}
                       title={proj.visibleOnWebsite ? 'Ocultar en Web' : 'Hacer Visible en Web'}
                       className={`p-1.5 rounded-lg text-xs font-bold flex items-center gap-1 shadow backdrop-blur-sm transition-all cursor-pointer ${
                         proj.visibleOnWebsite
@@ -663,7 +652,7 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
 
                   <div className="flex items-center justify-between pt-3 border-t border-stone-100">
                     <button
-                      onClick={() => onSetFeaturedProject(proj.id)}
+                      onClick={() => handleSetFeatured(proj)}
                       disabled={proj.isFeatured}
                       className={`text-[11px] font-bold flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
                         proj.isFeatured
@@ -685,12 +674,7 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
                       </button>
 
                       <button
-                        onClick={() => {
-                          if (confirm(`¿Eliminar proyecto "${proj.title}" de la web?`)) {
-                            onDeleteProject(proj.id);
-                            showToast('Proyecto eliminado.');
-                          }
-                        }}
+                        onClick={() => handleDeleteProject(proj)}
                         className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
                         title="Eliminar Proyecto"
                       >
@@ -714,9 +698,24 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
                 <Building2 className="w-5 h-5 text-[#580812]" />
                 Datos Corporativos de la Empresa (Footer)
               </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Endpoint simulated: <code className="bg-stone-100 px-1.5 py-0.5 rounded text-[11px] font-mono">PUT /api/website/company-info</code>
-              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-800">Logo</label>
+              <div className="flex items-center gap-3">
+                {(logoFile || companyData.logoUrl) && (
+                  <img
+                    src={logoFile ? URL.createObjectURL(logoFile) : companyData.logoUrl}
+                    alt="Logo actual"
+                    className="w-12 h-12 rounded-lg object-cover border border-stone-300"
+                  />
+                )}
+                <label className="px-3 py-2 bg-stone-100 hover:bg-stone-200 text-slate-800 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>{logoFile ? logoFile.name : 'Subir Logo'}</span>
+                  <input type="file" accept="image/*" onChange={handleCompanyLogoChange} className="hidden" />
+                </label>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -799,45 +798,55 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">Instagram (@usuario)</label>
-                <input
-                  type="text"
-                  value={companyForm.socialInstagram}
-                  onChange={(e) => setCompanyForm({ ...companyForm, socialInstagram: e.target.value })}
-                  className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#580812]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">TikTok (@usuario)</label>
-                <input
-                  type="text"
-                  value={companyForm.socialTikTok}
-                  onChange={(e) => setCompanyForm({ ...companyForm, socialTikTok: e.target.value })}
-                  className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#580812]"
-                />
-              </div>
-            </div>
-
             <div>
-              <label className="block text-xs font-bold text-slate-800 mb-1">Texto Copyright</label>
+              <label className="block text-xs font-bold text-slate-800 mb-1">Horario de Atención</label>
               <input
                 type="text"
-                value={companyForm.copyright}
-                onChange={(e) => setCompanyForm({ ...companyForm, copyright: e.target.value })}
+                value={companyForm.schedule}
+                onChange={(e) => setCompanyForm({ ...companyForm, schedule: e.target.value })}
+                placeholder="Ej. Lunes a Viernes: 08:30 - 19:00"
                 className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#580812]"
               />
             </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">Instagram (URL completa)</label>
+                <input
+                  type="url"
+                  value={companyForm.socialInstagram}
+                  onChange={(e) => setCompanyForm({ ...companyForm, socialInstagram: e.target.value })}
+                  placeholder="https://instagram.com/tu_cuenta"
+                  className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#580812]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">TikTok (URL completa)</label>
+                <input
+                  type="url"
+                  value={companyForm.socialTikTok}
+                  onChange={(e) => setCompanyForm({ ...companyForm, socialTikTok: e.target.value })}
+                  placeholder="https://tiktok.com/@tu_cuenta"
+                  className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#580812]"
+                />
+              </div>
+            </div>
+
+            {companyError && (
+              <p className="text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                {companyError}
+              </p>
+            )}
+
             <div className="pt-4 border-t border-stone-200 flex justify-end">
               <button
                 type="submit"
-                className="px-6 py-2.5 bg-[#580812] hover:bg-rose-900 text-white rounded-xl text-xs font-black flex items-center gap-2 shadow-lg shadow-[#580812]/30 transition-all cursor-pointer"
+                disabled={isSavingCompany}
+                className="px-6 py-2.5 bg-[#580812] hover:bg-rose-900 text-white rounded-xl text-xs font-black flex items-center gap-2 shadow-lg shadow-[#580812]/30 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <Save className="w-4 h-4" />
-                <span>Guardar Datos de Empresa</span>
+                <span>{isSavingCompany ? 'Guardando...' : 'Guardar Datos de Empresa'}</span>
               </button>
             </div>
           </form>
@@ -887,90 +896,9 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
                 </div>
 
                 <div className="text-[10px] text-stone-500 pt-2 text-center border-t border-white/5">
-                  © {new Date().getFullYear()} {companyForm.copyright}
+                  © {new Date().getFullYear()} {companyForm.companyName}. Todos los derechos reservados.
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 4: API ENDPOINTS DOCUMENTATION FOR BACKEND DEVELOPER */}
-      {activeTab === 'api_docs' && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200 space-y-6">
-          <div className="border-b border-stone-100 pb-4">
-            <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
-              <FileCode className="w-5 h-5 text-[#0A192F]" />
-              Especificación de Endpoints API Backend (Guía para Integración Futura)
-            </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Esta sección especifica la estructura JSON de las peticiones REST que tu backend debe exponer para automatizar la persistencia.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Endpoint 1: Video Hero */}
-            <div className="bg-[#071324] text-white p-5 rounded-2xl space-y-3 font-mono text-xs border border-white/10">
-              <div className="flex items-center justify-between">
-                <span className="px-2 py-0.5 bg-emerald-600 text-white rounded font-bold text-[10px]">
-                  POST / PUT
-                </span>
-                <span className="text-[10px] text-stone-400">/api/website/hero-video</span>
-              </div>
-              <p className="text-[11px] text-stone-300 font-sans">
-                Carga o actualización del vídeo de portada de la landing.
-              </p>
-              <pre className="bg-[#0A192F] p-3 rounded-xl text-[11px] text-rose-300 overflow-x-auto border border-white/5">
-{`{
-  "videoUrl": "https://cdn.empresa.com/hero.mp4",
-  "videoTitle": "Espacios Exclusivos",
-  "videoSubtitle": "Reformas de lujo",
-  "showVideo": true
-}`}
-              </pre>
-            </div>
-
-            {/* Endpoint 2: Projects */}
-            <div className="bg-[#071324] text-white p-5 rounded-2xl space-y-3 font-mono text-xs border border-white/10">
-              <div className="flex items-center justify-between">
-                <span className="px-2 py-0.5 bg-blue-600 text-white rounded font-bold text-[10px]">
-                  POST / GET / PUT
-                </span>
-                <span className="text-[10px] text-stone-400">/api/website/projects</span>
-              </div>
-              <p className="text-[11px] text-stone-300 font-sans">
-                Creación y gestión de proyectos del portafolio web.
-              </p>
-              <pre className="bg-[#0A192F] p-3 rounded-xl text-[11px] text-emerald-300 overflow-x-auto border border-white/5">
-{`{
-  "title": "Cocina Abierta Calacatta",
-  "projectType": "cocina",
-  "imageUrl": "https://cdn...",
-  "isFeatured": true,
-  "visibleOnWebsite": true
-}`}
-              </pre>
-            </div>
-
-            {/* Endpoint 3: Company Data */}
-            <div className="bg-[#071324] text-white p-5 rounded-2xl space-y-3 font-mono text-xs border border-white/10">
-              <div className="flex items-center justify-between">
-                <span className="px-2 py-0.5 bg-amber-600 text-white rounded font-bold text-[10px]">
-                  PUT / GET
-                </span>
-                <span className="text-[10px] text-stone-400">/api/website/company-info</span>
-              </div>
-              <p className="text-[11px] text-stone-300 font-sans">
-                Modificación de los datos corporativos visibles en el footer.
-              </p>
-              <pre className="bg-[#0A192F] p-3 rounded-xl text-[11px] text-amber-300 overflow-x-auto border border-white/5">
-{`{
-  "companyName": "Remodelaciones FVJ",
-  "phone": "+34 611 223 344",
-  "email": "info@remodelacionesfvj.es",
-  "cif": "B-987654321"
-}`}
-              </pre>
             </div>
           </div>
         </div>
@@ -1057,22 +985,38 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
                 </div>
               </div>
 
-              {/* Image Input or File Picker */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">Vincular a Obra Real (opcional)</label>
+                <select
+                  value={projWorkOrderId}
+                  onChange={(e) => setProjWorkOrderId(e.target.value)}
+                  className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#580812]"
+                >
+                  <option value="">Sin vincular</option>
+                  {workOrders.map((wo) => (
+                    <option key={wo.id} value={wo.id}>
+                      {wo.title} — {wo.clientName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Image Upload */}
               <div className="space-y-2">
                 <label className="block text-xs font-bold text-slate-800">
-                  Fotografía del Proyecto (URL o Cargar Archivo)
+                  Fotografía del Proyecto
                 </label>
-                <div className="flex gap-2">
-                  <input
-                    type="url"
-                    value={projImageUrl}
-                    onChange={(e) => setProjImageUrl(e.target.value)}
-                    placeholder="https://images.unsplash.com/..."
-                    className="flex-1 bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#580812]"
-                  />
-                  <label className="px-3 py-2 bg-stone-100 hover:bg-stone-200 text-slate-800 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer">
+                <div className="flex items-center gap-3">
+                  {projImagePreview && (
+                    <img
+                      src={projImagePreview}
+                      alt="Vista previa"
+                      className="w-14 h-14 rounded-lg object-cover border border-stone-300"
+                    />
+                  )}
+                  <label className="px-3 py-2 bg-stone-100 hover:bg-stone-200 text-slate-800 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
                     <Upload className="w-3.5 h-3.5" />
-                    <span>Subir</span>
+                    <span>{projImageFile ? projImageFile.name : 'Subir Fotografía'}</span>
                     <input
                       type="file"
                       accept="image/*"
@@ -1099,6 +1043,7 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
                   <input
                     type="checkbox"
                     checked={projIsFeatured}
+                    disabled={editingProjectId != null && projects.find((p) => p.id === editingProjectId)?.isFeatured}
                     onChange={(e) => setProjIsFeatured(e.target.checked)}
                     className="w-4 h-4 accent-[#580812] rounded"
                   />
@@ -1116,6 +1061,12 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
                 </label>
               </div>
 
+              {projectError && (
+                <p className="text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                  {projectError}
+                </p>
+              )}
+
               <div className="flex justify-end gap-3 pt-4 border-t border-stone-100">
                 <button
                   type="button"
@@ -1126,9 +1077,10 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 bg-[#580812] hover:bg-rose-900 text-white rounded-xl text-xs font-bold shadow"
+                  disabled={isSavingProject}
+                  className="px-6 py-2 bg-[#580812] hover:bg-rose-900 text-white rounded-xl text-xs font-bold shadow disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {editingProjectId ? 'Guardar Cambios' : 'Crear Proyecto'}
+                  {isSavingProject ? 'Guardando...' : editingProjectId ? 'Guardar Cambios' : 'Crear Proyecto'}
                 </button>
               </div>
             </form>

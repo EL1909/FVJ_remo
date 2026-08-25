@@ -16,6 +16,7 @@ import {
   LayoutGrid,
   UserCheck,
   Globe,
+  LogOut,
 } from 'lucide-react';
 
 export type ViewType =
@@ -38,6 +39,7 @@ interface SidebarProps {
   unpaidInvoicesCount: number;
   isMenuOpen: boolean;
   onCloseMenu: () => void;
+  onLogout?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -48,6 +50,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   unpaidInvoicesCount,
   isMenuOpen,
   onCloseMenu,
+  onLogout,
 }) => {
   const menuItems: {
     id: ViewType;
@@ -151,13 +154,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
             </div>
 
-            <button
-              onClick={onCloseMenu}
-              className="p-2.5 rounded-full bg-white/10 hover:bg-[#580812] text-white transition-all cursor-pointer"
-              aria-label="Cerrar menú"
-            >
-              <X className="w-6 h-6" />
-            </button>
+            <div className="flex items-center gap-2">
+              {onLogout && (
+                <button
+                  onClick={onLogout}
+                  className="px-3 py-2.5 rounded-xl bg-white/10 hover:bg-[#580812] text-white transition-all cursor-pointer flex items-center gap-1.5"
+                  title="Cerrar sesión"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span className="hidden sm:inline text-xs font-semibold">Salir</span>
+                </button>
+              )}
+
+              <button
+                onClick={onCloseMenu}
+                className="p-2.5 rounded-full bg-white/10 hover:bg-[#580812] text-white transition-all cursor-pointer"
+                aria-label="Cerrar menú"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
           </div>
 
           {/* Module Links List */}

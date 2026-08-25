@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   TrendingUp,
   FileText,
@@ -14,6 +14,7 @@ import {
   Users,
   Eye,
   Sparkles,
+  UploadCloud,
 } from 'lucide-react';
 import {
   Estimate,
@@ -23,6 +24,8 @@ import {
   SocialPost,
   Client,
 } from '../../types';
+import { Profile } from '../../lib/api';
+import { SyncModal } from '../modals/SyncModal';
 
 interface DashboardViewProps {
   estimates: Estimate[];
@@ -34,6 +37,7 @@ interface DashboardViewProps {
   onNavigate: (view: any) => void;
   onOpenNewEstimate: () => void;
   onOpenNewEvent: () => void;
+  currentUser?: Profile | null;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -45,7 +49,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onNavigate,
   onOpenNewEstimate,
   onOpenNewEvent,
+  currentUser,
 }) => {
+  const userFullName =
+    [currentUser?.first_name, currentUser?.last_name].filter(Boolean).join(' ').trim() ||
+    currentUser?.email ||
+    '';
+
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+
   // Calculations
   const pendingEstimates = estimates.filter((e) => e.status === 'enviado' || e.status === 'borrador');
   const activeWorkOrders = workOrders.filter((w) => w.status === 'en_progreso');
@@ -67,10 +79,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2 max-w-xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#580812] text-stone-100 text-xs font-bold uppercase tracking-wider">
-              <span>Reforma Lux</span>
+              <span>FVJ Remodelaciones</span>
             </div>
             <h2 className="text-2xl md:text-3xl font-black text-stone-100 tracking-tight">
-              Bienvenido a <span className="text-stone-100">Reforma Lux</span>
+              Bienvenido{userFullName ? <span className="text-stone-100"> {userFullName}</span> : ''}
             </h2>
             <p className="text-stone-300 text-xs md:text-sm leading-relaxed">
               Supervisa agendas de medición, aprueba presupuestos de obras de baños y cocinas, y analiza la conversión de clientes desde TikTok e Instagram.
@@ -92,6 +104,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <CalendarIcon className="w-4 h-4 text-stone-200" />
               <span>Agendar Medición</span>
             </button>
+            <button
+              onClick={() => setIsSyncModalOpen(true)}
+              className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-stone-100 text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer"
+              title="Publicar resumen del negocio a EsfuerzoVZ"
+            >
+              <UploadCloud className="w-4 h-4 text-amber-300" />
+              <span>Publicar a EsfuerzoVZ</span>
+            </button>
           </div>
         </div>
       </div>
@@ -108,7 +128,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div className="mt-3">
             <div className="text-2xl font-black text-[#0A192F]">
-              {totalBilledMonth.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
+              {totalBilledMonth.toLocaleString('es-ES', { minimumFractionDigits: 2 })} $
             </div>
             <div className="flex items-center gap-1.5 mt-1 text-xs font-semibold text-emerald-700">
               <TrendingUp className="w-3.5 h-3.5" />
@@ -160,7 +180,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               {pendingEstimates.length} <span className="text-xs font-semibold text-slate-500">enviados</span>
             </div>
             <div className="mt-1 text-xs font-bold text-[#580812]">
-              Valor total: {pendingEstimates.reduce((a, b) => a + b.total, 0).toLocaleString('es-ES', { maximumFractionDigits: 0 })} €
+              Valor total: {pendingEstimates.reduce((a, b) => a + b.total, 0).toLocaleString('es-ES', { maximumFractionDigits: 0 })} $
             </div>
           </div>
         </div>
@@ -269,7 +289,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </span>
                   </div>
                   <span className="text-[11px] text-slate-500 shrink-0 font-semibold">
-                    Presupuesto: {order.budgetTotal.toLocaleString('es-ES')} €
+                    Presupuesto: {order.budgetTotal.toLocaleString('es-ES')} $
                   </span>
                 </div>
               </div>
@@ -386,6 +406,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           ))}
         </div>
       </div>
+
+      <SyncModal isOpen={isSyncModalOpen} onClose={() => setIsSyncModalOpen(false)} />
     </div>
   );
 };

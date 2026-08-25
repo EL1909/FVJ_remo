@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
-import { X, Calendar, User, Package } from 'lucide-react';
+import { X, Calendar, User, Package, AlertCircle } from 'lucide-react';
 import { CalendarEvent, Client, MaterialPurchase } from '../../types';
+import { NewClientInput } from '../../lib/crm';
+import { NewEventInput } from '../../lib/calendars';
+import { ApiError } from '../../lib/api';
 
 interface QuickEventModalProps {
   isOpen: boolean;
   onClose: () => void;
   clients: Client[];
-  onSaveEvent: (event: CalendarEvent) => void;
+  onSaveEvent: (event: NewEventInput) => Promise<void>;
 }
 
 export const QuickEventModal: React.FC<QuickEventModalProps> = ({
@@ -17,34 +20,65 @@ export const QuickEventModal: React.FC<QuickEventModalProps> = ({
 }) => {
   const [title, setTitle] = useState('');
   const [type, setType] = useState<CalendarEvent['type']>('visita_tecnica');
-  const [clientId, setClientId] = useState(clients[0]?.id || '');
+  // El cliente se escribe como texto libre (customer_name/phone/email del
+  // backend) — vincular a un Client real del CRM es opcional, solo para
+  // trazabilidad. Mismo patrón que el generador de presupuestos.
+  const [linkedClientId, setLinkedClientId] = useState('');
+  const [clientName, setClientName] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+  const [clientEmail, setClientEmail] = useState('');
   const [date, setDate] = useState('2026-08-06');
   const [startTime, setStartTime] = useState('11:00');
-  const [assignedTo, setAssignedTo] = useState('Carlos Ruiz');
   const [address, setAddress] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // El backend asigna automáticamente a quien tenga cupo libre — este
+  // formulario no elige responsable, así que solo hace falta una hora de
+  // fin coherente con la de inicio (antes venía fija en '12:00', lo que
+  // rechazaba el backend si la cita empezaba después del mediodía).
+  const endTimeFrom = (start: string) => {
+    const [h, m] = start.split(':').map(Number);
+    const endH = (h + 1) % 24;
+    return `${String(endH).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  };
+
+  const handlePickExistingClient = (id: string) => {
+    setLinkedClientId(id);
+    const c = clients.find((cl) => cl.id === id);
+    if (c) {
+      setClientName(c.name);
+      setClientPhone(c.phone);
+      setClientEmail(c.email);
+      setAddress(c.address);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const client = clients.find((c) => c.id === clientId);
-
-    const newEvt: CalendarEvent = {
-      id: `evt-${Date.now()}`,
-      title: title || `Visita de Medición - ${client?.name || 'Cliente'}`,
-      type,
-      clientId: client?.id,
-      clientName: client?.name,
-      address: address || client?.address || 'Dirección de obra',
-      date,
-      startTime,
-      endTime: '12:00',
-      assignedTo,
-      completed: false,
-    };
-
-    onSaveEvent(newEvt);
-    onClose();
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await onSaveEvent({
+        title: title || `Visita de Medición - ${clientName.trim() || 'Cliente'}`,
+        type,
+        clientId: linkedClientId || undefined,
+        clientName: clientName.trim(),
+        clientPhone: clientPhone.trim(),
+        clientEmail: clientEmail.trim(),
+        address: address.trim() || 'Dirección de obra',
+        date,
+        startTime,
+        endTime: endTimeFrom(startTime),
+      });
+      onClose();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo agendar la cita.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -75,23 +109,57 @@ export const QuickEventModal: React.FC<QuickEventModalProps> = ({
             </select>
           </div>
 
+          {clients.length > 0 && (
+            <div>
+              <label className="block text-slate-300 font-bold mb-1">Vincular a Cliente Existente (opcional)</label>
+              <select
+                value={linkedClientId}
+                onChange={(e) => handlePickExistingClient(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
+              >
+                <option value="">— Cliente nuevo (sin vincular) —</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.city})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-slate-300 font-bold mb-1">Nombre del Cliente *</label>
+              <input
+                type="text"
+                required
+                value={clientName}
+                onChange={(e) => setClientName(e.target.value)}
+                placeholder="Ej. María Fernández"
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-slate-300 font-bold mb-1">Teléfono</label>
+              <input
+                type="text"
+                value={clientPhone}
+                onChange={(e) => setClientPhone(e.target.value)}
+                placeholder="+34 612 345 678"
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
+              />
+            </div>
+          </div>
+
           <div>
-            <label className="block text-slate-300 font-bold mb-1">Cliente</label>
-            <select
-              value={clientId}
-              onChange={(e) => {
-                setClientId(e.target.value);
-                const cl = clients.find((c) => c.id === e.target.value);
-                if (cl) setAddress(cl.address);
-              }}
+            <label className="block text-slate-300 font-bold mb-1">Email</label>
+            <input
+              type="email"
+              value={clientEmail}
+              onChange={(e) => setClientEmail(e.target.value)}
+              placeholder="maria@ejemplo.com"
               className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
-            >
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.city})
-                </option>
-              ))}
-            </select>
+            />
           </div>
 
           <div>
@@ -137,15 +205,16 @@ export const QuickEventModal: React.FC<QuickEventModalProps> = ({
             />
           </div>
 
-          <div>
-            <label className="block text-slate-300 font-bold mb-1">Técnico / Responsable</label>
-            <input
-              type="text"
-              value={assignedTo}
-              onChange={(e) => setAssignedTo(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
-            />
-          </div>
+          <p className="text-[11px] text-slate-500">
+            El responsable se asigna automáticamente según disponibilidad.
+          </p>
+
+          {error && (
+            <div className="flex items-start gap-2 text-red-400 bg-red-950/40 border border-red-900 rounded-xl p-2.5">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
             <button
@@ -157,9 +226,10 @@ export const QuickEventModal: React.FC<QuickEventModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold"
+              disabled={isSubmitting}
+              className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold"
             >
-              Guardar en Agenda
+              {isSubmitting ? 'Guardando...' : 'Guardar en Agenda'}
             </button>
           </div>
         </form>
@@ -171,7 +241,7 @@ export const QuickEventModal: React.FC<QuickEventModalProps> = ({
 interface QuickClientModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSaveClient: (client: Client) => void;
+  onSaveClient: (client: NewClientInput) => Promise<void>;
 }
 
 export const QuickClientModal: React.FC<QuickClientModalProps> = ({
@@ -185,25 +255,31 @@ export const QuickClientModal: React.FC<QuickClientModalProps> = ({
   const [address, setAddress] = useState('');
   const [city, setCity] = useState('Madrid');
   const [tagInput, setTagInput] = useState('Reforma Baño');
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newClient: Client = {
-      id: `cli-${Date.now()}`,
-      name: name || 'Nuevo Cliente',
-      phone,
-      email,
-      address,
-      city,
-      tags: [tagInput, 'Nuevo Lead'],
-      createdAt: new Date().toISOString().split('T')[0],
-      preferredContact: 'whatsapp',
-    };
-
-    onSaveClient(newClient);
-    onClose();
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await onSaveClient({
+        name: name || 'Nuevo Cliente',
+        phone,
+        email,
+        address,
+        city,
+        tags: [tagInput, 'Nuevo Lead'],
+        preferredContact: 'whatsapp',
+      });
+      onClose();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo guardar el cliente.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -291,6 +367,13 @@ export const QuickClientModal: React.FC<QuickClientModalProps> = ({
             </select>
           </div>
 
+          {error && (
+            <div className="flex items-start gap-2 text-red-400 bg-red-950/40 border border-red-900 rounded-xl p-2.5">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
+
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
             <button
               type="button"
@@ -301,9 +384,10 @@ export const QuickClientModal: React.FC<QuickClientModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold"
+              disabled={isSubmitting}
+              className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold"
             >
-              Guardar Cliente
+              {isSubmitting ? 'Guardando...' : 'Guardar Cliente'}
             </button>
           </div>
         </form>

@@ -20,7 +20,7 @@ export const initialClients: Client[] = [
     city: 'Barcelona',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
     tags: ['Reforma Cocina', 'VIP', 'Cliente Instagram'],
-    notes: 'Busca concepto abierto con isla de cuarzo Calacatta y muebles sin tirador antihuella.',
+    notes: [{ authorEmail: null, text: 'Busca concepto abierto con isla de cuarzo Calacatta y muebles sin tirador antihuella.', date: '2026-06-10T09:00:00Z' }],
     createdAt: '2026-06-10',
     preferredContact: 'whatsapp',
   },
@@ -33,7 +33,7 @@ export const initialClients: Client[] = [
     city: 'Madrid',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
     tags: ['Reforma Baño Principal', 'Cambio Bañera por Ducha'],
-    notes: 'Prioriza plato de ducha extraplano antideslizante con mampara fija dorada mate.',
+    notes: [{ authorEmail: null, text: 'Prioriza plato de ducha extraplano antideslizante con mampara fija dorada mate.', date: '2026-06-18T09:00:00Z' }],
     createdAt: '2026-06-18',
     preferredContact: 'phone',
   },
@@ -46,7 +46,7 @@ export const initialClients: Client[] = [
     city: 'Madrid',
     avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=200&q=80',
     tags: ['Reforma Integral', 'Baño + Cocina'],
-    notes: 'Llegó por TikTok (#TransformacionBaño). Desea microcemento y grifería empotrada.',
+    notes: [{ authorEmail: null, text: 'Llegó por TikTok (#TransformacionBaño). Desea microcemento y grifería empotrada.', date: '2026-07-02T09:00:00Z' }],
     createdAt: '2026-07-02',
     preferredContact: 'email',
   },
@@ -59,7 +59,7 @@ export const initialClients: Client[] = [
     city: 'Valencia',
     avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80',
     tags: ['Presupuesto Pendiente', 'Cocina L-Shape'],
-    notes: 'Presupuesto en revisión para muebles de cocina verde oliva y grifería cobre.',
+    notes: [{ authorEmail: null, text: 'Presupuesto en revisión para muebles de cocina verde oliva y grifería cobre.', date: '2026-07-20T09:00:00Z' }],
     createdAt: '2026-07-20',
     preferredContact: 'whatsapp',
   },
@@ -136,7 +136,7 @@ export const initialEstimates: Estimate[] = [
     total: 15346.43,
     estimatedCost: 8850,
     estimatedMargin: 38.3,
-    notes: 'Incluye protección de zonas comunes de la finca y limpieza final de obra.',
+    notes: [{ authorEmail: null, text: 'Incluye protección de zonas comunes de la finca y limpieza final de obra.', date: '2026-07-15T09:00:00Z' }],
     terms: '30% al firmar, 40% al recibir materiales, 30% a la finalización y conformidad.',
   },
   {
@@ -199,7 +199,7 @@ export const initialEstimates: Estimate[] = [
     total: 5270.76,
     estimatedCost: 2980,
     estimatedMargin: 31.6,
-    notes: 'Tiempo estimado de ejecución: 5 a 6 días laborables.',
+    notes: [{ authorEmail: null, text: 'Tiempo estimado de ejecución: 5 a 6 días laborables.', date: '2026-07-01T09:00:00Z' }],
     terms: '50% inicio de obra, 50% fin de obra.',
   },
   {
@@ -252,7 +252,7 @@ export const initialEstimates: Estimate[] = [
     total: 16093,
     estimatedCost: 8900,
     estimatedMargin: 33.1,
-    notes: 'Pendiente de confirmación del color de las puertas de la cocina.',
+    notes: [{ authorEmail: null, text: 'Pendiente de confirmación del color de las puertas de la cocina.', date: '2026-07-10T09:00:00Z' }],
   },
   {
     id: 'est-104',
@@ -294,6 +294,7 @@ export const initialEstimates: Estimate[] = [
     total: 6661.05,
     estimatedCost: 3765,
     estimatedMargin: 31.6,
+    notes: [],
   },
 ];
 
@@ -312,6 +313,7 @@ export const initialWorkOrders: WorkOrder[] = [
     startDate: '2026-07-20',
     expectedEndDate: '2026-08-10',
     assignedTeam: ['Carlos Ruiz (Jefe Obra)', 'Mateo V. (Fontanero)', 'Lucía B. (Alicatadora)'],
+    assignedTeamIds: [],
     progressPercentage: 70,
     budgetTotal: 15346.43,
     actualCost: 6120,
@@ -346,6 +348,7 @@ export const initialWorkOrders: WorkOrder[] = [
         uploadedAt: '2026-08-02',
       },
     ],
+    notes: [],
   },
   {
     id: 'wo-202',
@@ -361,6 +364,7 @@ export const initialWorkOrders: WorkOrder[] = [
     startDate: '2026-08-01',
     expectedEndDate: '2026-08-08',
     assignedTeam: ['Manolo G. (Oficial)', 'Lucía B. (Alicatadora)'],
+    assignedTeamIds: [],
     progressPercentage: 45,
     budgetTotal: 5270.76,
     actualCost: 1850,
@@ -387,6 +391,7 @@ export const initialWorkOrders: WorkOrder[] = [
         uploadedAt: '2026-08-03',
       },
     ],
+    notes: [],
   },
   {
     id: 'wo-203',
@@ -402,6 +407,7 @@ export const initialWorkOrders: WorkOrder[] = [
     expectedEndDate: '2026-06-25',
     actualEndDate: '2026-06-24',
     assignedTeam: ['Carlos Ruiz', 'Roberto M.'],
+    assignedTeamIds: [],
     progressPercentage: 100,
     budgetTotal: 8450.00,
     actualCost: 4920,
@@ -420,6 +426,7 @@ export const initialWorkOrders: WorkOrder[] = [
         uploadedAt: '2026-06-24',
       },
     ],
+    notes: [],
   },
 ];
 
@@ -446,7 +453,7 @@ export const initialInvoices: Invoice[] = [
       { description: '40% Avance Montaje Muebles', percentage: 40, amount: 6138.57, isPaid: true, dueDate: '2026-08-04' },
       { description: '30% Fin de Obra', percentage: 30, amount: 4603.93, isPaid: false, dueDate: '2026-08-12' },
     ],
-    notes: 'Pago recibido por transferencia bancaria.',
+    notes: [{ authorEmail: null, text: 'Pago recibido por transferencia bancaria.', date: '2026-07-16T09:00:00Z' }],
   },
   {
     id: 'inv-302',
@@ -465,7 +472,7 @@ export const initialInvoices: Invoice[] = [
     taxAmount: 1065.37,
     total: 6138.57,
     paidAmount: 0,
-    notes: 'Factura emitida tras inspección del avance de obra.',
+    notes: [{ authorEmail: null, text: 'Factura emitida tras inspección del avance de obra.', date: '2026-08-03T09:00:00Z' }],
   },
   {
     id: 'inv-303',
@@ -484,6 +491,7 @@ export const initialInvoices: Invoice[] = [
     taxAmount: 457.38,
     total: 2635.38,
     paidAmount: 2635.38,
+    notes: [],
   },
 ];
 
@@ -502,6 +510,7 @@ export const initialMaterialPurchases: MaterialPurchase[] = [
     purchaseDate: '2026-07-18',
     deliveryDate: '2026-08-03',
     status: 'recibido',
+    isPaid: true,
     invoiceReference: 'PORC-99823',
   },
   {
@@ -518,6 +527,7 @@ export const initialMaterialPurchases: MaterialPurchase[] = [
     purchaseDate: '2026-07-22',
     deliveryDate: '2026-08-07',
     status: 'en_transito',
+    isPaid: false,
     invoiceReference: 'MARM-4410',
   },
   {
@@ -534,6 +544,7 @@ export const initialMaterialPurchases: MaterialPurchase[] = [
     purchaseDate: '2026-07-28',
     deliveryDate: '2026-08-02',
     status: 'recibido',
+    isPaid: true,
     invoiceReference: 'ROCA-88392',
   },
   {
@@ -550,6 +561,7 @@ export const initialMaterialPurchases: MaterialPurchase[] = [
     purchaseDate: '2026-07-29',
     deliveryDate: '2026-08-05',
     status: 'en_transito',
+    isPaid: false,
     invoiceReference: 'TRES-1204',
   },
   {
@@ -566,6 +578,7 @@ export const initialMaterialPurchases: MaterialPurchase[] = [
     purchaseDate: '2026-07-20',
     deliveryDate: '2026-07-21',
     status: 'recibido',
+    isPaid: true,
   },
 ];
 
@@ -582,7 +595,10 @@ export const initialCalendarEvents: CalendarEvent[] = [
     endTime: '11:30',
     description: 'Tomar medidas exactas de tomas de gas, luz y desagües para presupuesto definitivo.',
     assignedTo: 'Carlos Ruiz',
+    status: 'confirmed',
     completed: false,
+    notes: [],
+    photos: [],
   },
   {
     id: 'evt-502',
@@ -596,7 +612,10 @@ export const initialCalendarEvents: CalendarEvent[] = [
     endTime: '14:00',
     description: 'Recepción del camión de Mármoles Benítez y colocación en obra.',
     assignedTo: 'Mármoles Benítez',
+    status: 'confirmed',
     completed: false,
+    notes: [],
+    photos: [],
   },
   {
     id: 'evt-503',
@@ -609,7 +628,10 @@ export const initialCalendarEvents: CalendarEvent[] = [
     endTime: '17:00',
     description: 'Mostrar muestras de microcemento marfil y griferías empotradas.',
     assignedTo: 'Laura M. (Interiorista)',
+    status: 'confirmed',
     completed: false,
+    notes: [],
+    photos: [],
   },
   {
     id: 'evt-504',
@@ -623,7 +645,10 @@ export const initialCalendarEvents: CalendarEvent[] = [
     endTime: '13:00',
     description: 'Revisión conjunta con cliente antes de instalar griferías y mampara.',
     assignedTo: 'Carlos Ruiz',
+    status: 'confirmed',
     completed: false,
+    notes: [],
+    photos: [],
   },
   {
     id: 'evt-505',
@@ -637,7 +662,10 @@ export const initialCalendarEvents: CalendarEvent[] = [
     endTime: '12:30',
     description: 'Entrega de certificado de garantía de 5 años y sesión de fotos/vídeo para TikTok.',
     assignedTo: 'Carlos Ruiz',
+    status: 'confirmed',
     completed: false,
+    notes: [],
+    photos: [],
   },
 ];
 
@@ -704,20 +732,8 @@ export const initialEmployees: Employee[] = [
     salaryAmount: 2650,
     status: 'activo',
     startDate: '2024-03-15',
-    notes: 'Jefe de obra certificado con más de 12 años en reformas de cocinas de lujo e instalaciones de fontanería.',
-    activeAssignments: [
-      {
-        id: 'asg-101',
-        employeeId: 'emp-1',
-        type: 'obra',
-        targetId: 'wo-201',
-        targetTitle: 'Remodelación Integral Cocina Abierta con Isla Calacatta',
-        targetAddress: 'Av. Diagonal 450, 4º 2ª, Barcelona',
-        roleInTask: 'Coordinador General de Obra',
-        startDate: '2026-07-20',
-        status: 'activa',
-      },
-    ],
+    bio: 'Jefe de obra certificado con más de 12 años en reformas de cocinas de lujo e instalaciones de fontanería.',
+    notes: [],
     expenses: [
       {
         id: 'exp-1',
@@ -756,31 +772,8 @@ export const initialEmployees: Employee[] = [
     salaryAmount: 2100,
     status: 'activo',
     startDate: '2025-01-10',
-    notes: 'Especialista en colectores de fontanería multicapa, válvulas ocultas y griferías monomando empotradas.',
-    activeAssignments: [
-      {
-        id: 'asg-102',
-        employeeId: 'emp-2',
-        type: 'obra',
-        targetId: 'wo-201',
-        targetTitle: 'Remodelación Integral Cocina Abierta',
-        targetAddress: 'Av. Diagonal 450, 4º 2ª',
-        roleInTask: 'Instalador Fontanería Multicapa',
-        startDate: '2026-07-22',
-        status: 'activa',
-      },
-      {
-        id: 'asg-103',
-        employeeId: 'emp-2',
-        type: 'visita',
-        targetId: 'evt-2',
-        targetTitle: 'Medición Técnica de Fontanería',
-        targetAddress: 'Paseo de la Castellana 120, 7º A',
-        roleInTask: 'Toma de cotas y presiones de agua',
-        startDate: '2026-08-06',
-        status: 'activa',
-      },
-    ],
+    bio: 'Especialista en colectores de fontanería multicapa, válvulas ocultas y griferías monomando empotradas.',
+    notes: [],
     expenses: [
       {
         id: 'exp-3',
@@ -807,20 +800,8 @@ export const initialEmployees: Employee[] = [
     salaryAmount: 2200,
     status: 'activo',
     startDate: '2024-09-01',
-    notes: 'Maestro alicatador experto en rectificados de gran formato (120x60cm) y cortes a 45º para ingletes.',
-    activeAssignments: [
-      {
-        id: 'asg-104',
-        employeeId: 'emp-3',
-        type: 'obra',
-        targetId: 'wo-202',
-        targetTitle: 'Transformación de Bañera a Plato Ducha Walk-In',
-        targetAddress: 'Calle Velázquez 88, 2º B, Madrid',
-        roleInTask: 'Alicatado de paramentos y solado de plato ducha',
-        startDate: '2026-08-01',
-        status: 'activa',
-      },
-    ],
+    bio: 'Maestro alicatador experto en rectificados de gran formato (120x60cm) y cortes a 45º para ingletes.',
+    notes: [],
     expenses: [
       {
         id: 'exp-4',
@@ -846,20 +827,8 @@ export const initialEmployees: Employee[] = [
     salaryAmount: 1950,
     status: 'activo',
     startDate: '2025-05-12',
-    notes: 'Aparejador en prácticas. Realiza el levantamiento de planos 3D y presupuesto inicial de baños.',
-    activeAssignments: [
-      {
-        id: 'asg-105',
-        employeeId: 'emp-4',
-        type: 'visita',
-        targetId: 'evt-1',
-        targetTitle: 'Medición Técnica y Levantamiento 3D',
-        targetAddress: 'Calle Gran Vía 14, 3º C, Valencia',
-        roleInTask: 'Levantamiento de planos e itinerario',
-        startDate: '2026-08-05',
-        status: 'activa',
-      },
-    ],
+    bio: 'Aparejador en prácticas. Realiza el levantamiento de planos 3D y presupuesto inicial de baños.',
+    notes: [],
     expenses: [
       {
         id: 'exp-5',
@@ -884,8 +853,8 @@ export const initialEmployees: Employee[] = [
     salaryAmount: 2050,
     status: 'activo',
     startDate: '2025-02-01',
-    notes: 'Montador certificado de cocinas de alto standing y mecanismos de extracción extraibles.',
-    activeAssignments: [],
+    bio: 'Montador certificado de cocinas de alto standing y mecanismos de extracción extraibles.',
+    notes: [],
     expenses: [],
   },
 ];
@@ -961,7 +930,6 @@ export const initialCompanyData: import('../types').CompanyData = {
   schedule: 'Lunes a Viernes: 08:30 - 19:00 | Sábados: 09:00 - 14:00',
   socialInstagram: '@remodelaciones_fvj',
   socialTikTok: '@remodelaciones_fvj',
-  copyright: 'Remodelaciones FVJ S.L. Todos los derechos reservados.',
 };
 
 export const initialWebsiteProjects: import('../types').WebsiteProject[] = [

@@ -40,6 +40,9 @@ import {
   WebsiteProject,
   CompanyData,
 } from '../../types';
+import { NewReviewInput } from '../../lib/showcase';
+import { PublicAppointmentInput } from '../../lib/calendars';
+import { ApiError } from '../../lib/api';
 
 interface LandingPageProps {
   socialPosts: SocialPost[];
@@ -48,19 +51,11 @@ interface LandingPageProps {
   heroConfig?: WebsiteHeroConfig;
   websiteProjects?: WebsiteProject[];
   companyData?: CompanyData;
-  onBookAppointment: (appointmentData: {
-    name: string;
-    phone: string;
-    email: string;
-    city: string;
-    address: string;
-    projectType: ProjectType;
-    preferredDate: string;
-    preferredTime: string;
-    notes: string;
-  }) => void;
-  onAddReview: (review: PublicReview) => void;
+  onBookAppointment: (appointmentData: PublicAppointmentInput) => Promise<void>;
+  onAddReview: (review: NewReviewInput) => Promise<void>;
   onSwitchToAdmin: () => void;
+  isAuthenticated?: boolean;
+  onOpenAppsMenu?: () => void;
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({
@@ -73,7 +68,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onBookAppointment,
   onAddReview,
   onSwitchToAdmin,
+  isAuthenticated,
+  onOpenAppsMenu,
 }) => {
+  const handleAdminButtonClick = isAuthenticated ? onOpenAppsMenu : onSwitchToAdmin;
   // Navigation & Filter States
   const [activeTab, setActiveTab] = useState<'all' | ProjectType>('all');
   const [isBookingSuccessOpen, setIsBookingSuccessOpen] = useState(false);
@@ -83,7 +81,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   const [clientEmail, setClientEmail] = useState('');
-  const [clientCity, setClientCity] = useState('Barcelona');
+  const [clientCity, setClientCity] = useState('');
   const [clientAddress, setClientAddress] = useState('');
   const [projectType, setProjectType] = useState<ProjectType>('baño');
   const [preferredDate, setPreferredDate] = useState(() => {
@@ -93,6 +91,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   });
   const [preferredTime, setPreferredTime] = useState('10:00 - 12:00');
   const [bookingNotes, setBookingNotes] = useState('');
+  const [isBookingSubmitting, setIsBookingSubmitting] = useState(false);
+  const [bookingError, setBookingError] = useState('');
 
   // Form States for New Review Modal
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
@@ -101,61 +101,88 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [revRating, setRevRating] = useState(5);
   const [revType, setRevType] = useState<ProjectType>('baño');
   const [revComment, setRevComment] = useState('');
+  const [isSavingReview, setIsSavingReview] = useState(false);
+  const [reviewError, setReviewError] = useState('');
+  const [isReviewPendingOpen, setIsReviewPendingOpen] = useState(false);
 
   // Selected Project Detail Modal
   const [selectedProject, setSelectedProject] = useState<WorkOrder | null>(null);
 
   // Handle Booking Submit
-  const handleBookingSubmit = (e: React.FormEvent) => {
+  const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!clientName.trim() || !clientPhone.trim()) return;
 
-    const data = {
-      name: clientName.trim(),
-      phone: clientPhone.trim(),
-      email: clientEmail.trim() || `${clientName.toLowerCase().replace(/\s+/g, '.')}@gmail.com`,
-      city: clientCity,
-      address: clientAddress.trim() || `Calle Principal, ${clientCity}`,
-      projectType,
-      preferredDate,
-      preferredTime,
-      notes: bookingNotes.trim(),
+    const [startTime, endTime] = preferredTime.split(' - ');
+    const data: PublicAppointmentInput = {
+      title: `Medición Gratuita: Reforma ${projectType}`,
+      kind: 'medicion',
+      customerName: clientName.trim(),
+      customerEmail: clientEmail.trim(),
+      customerPhone: clientPhone.trim(),
+      address: clientAddress.trim() || `${clientCity} (sin dirección exacta)`,
+      date: preferredDate,
+      startTime,
+      endTime,
+      notes: bookingNotes.trim() || `Interés en reforma de ${projectType}.`,
     };
 
-    onBookAppointment(data);
-    setBookingDetails(data);
-    setIsBookingSuccessOpen(true);
+    setBookingError('');
+    setIsBookingSubmitting(true);
+    try {
+      await onBookAppointment(data);
+      setBookingDetails({
+        name: data.customerName,
+        phone: data.customerPhone,
+        address: data.address,
+        city: clientCity,
+        projectType,
+        preferredDate: data.date,
+      });
+      setIsBookingSuccessOpen(true);
 
-    // Reset Form
-    setClientName('');
-    setClientPhone('');
-    setClientEmail('');
-    setClientAddress('');
-    setBookingNotes('');
+      // Reset Form
+      setClientName('');
+      setClientPhone('');
+      setClientEmail('');
+      setClientCity('');
+      setClientAddress('');
+      setBookingNotes('');
+    } catch (err) {
+      setBookingError(err instanceof ApiError ? err.message : 'No se pudo confirmar la cita.');
+    } finally {
+      setIsBookingSubmitting(false);
+    }
   };
 
   // Handle Add Review Submit
-  const handleReviewSubmit = (e: React.FormEvent) => {
+  const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!revName.trim() || !revComment.trim()) return;
 
-    const newRev: PublicReview = {
-      id: `rev-${Date.now()}`,
-      authorName: revName.trim(),
-      authorLocation: revLocation.trim() || 'España',
-      rating: revRating,
-      date: new Date().toISOString().split('T')[0],
-      projectType: revType,
-      comment: revComment.trim(),
-      verified: true,
-      avatarUrl: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80`,
-    };
-
-    onAddReview(newRev);
-    setIsReviewModalOpen(false);
-    setRevName('');
-    setRevLocation('');
-    setRevComment('');
+    setReviewError('');
+    setIsSavingReview(true);
+    try {
+      await onAddReview({
+        authorName: revName.trim(),
+        authorLocation: revLocation.trim() || 'España',
+        rating: revRating,
+        date: new Date().toISOString().split('T')[0],
+        projectType: revType,
+        comment: revComment.trim(),
+      });
+      setIsReviewModalOpen(false);
+      setIsReviewPendingOpen(true);
+      setRevName('');
+      setRevLocation('');
+      setRevRating(5);
+      setRevType('baño');
+      setRevComment('');
+    } catch (err) {
+      setReviewError(err instanceof ApiError ? err.message : 'No se pudo enviar tu opinión.');
+    } finally {
+      setIsSavingReview(false);
+    }
   };
 
   // Derive active featured project for fallback
@@ -163,6 +190,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     websiteProjects?.find((p) => p.isFeatured && p.visibleOnWebsite) ||
     websiteProjects?.find((p) => p.visibleOnWebsite) ||
     websiteProjects?.[0];
+
+  // Promedio y total reales de reseñas verificadas (antes hardcodeado a 4.9 / 120+).
+  const avgRating = reviews.length > 0
+    ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+    : 0;
 
   // Portfolio items filtered from websiteProjects or workOrders
   const visibleWebProjects = websiteProjects?.filter((p) => p.visibleOnWebsite) || [];
@@ -177,7 +209,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const activeEmail = companyData?.email || 'info@remodelacionesfvj.es';
   const activeAddress = companyData?.address ? `${companyData.address}, ${companyData.city || 'España'}` : 'Av. Diagonal 450, Barcelona';
   const activeCif = companyData?.cif || 'B-987654321';
-  const activeCopyright = companyData?.copyright || 'Remodelaciones FVJ S.L. Todos los derechos reservados.';
+  const activeCopyright = `${activeCompanyName}. Todos los derechos reservados.`;
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-slate-800 font-sans selection:bg-[#580812] selection:text-white pb-16">
@@ -211,14 +243,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <span>Solicitar Presupuesto</span>
               </a>
 
-              {/* Switch to Admin ERP */}
+              {/* Switch to Admin ERP / Apps Menu */}
               <button
-                onClick={onSwitchToAdmin}
+                onClick={handleAdminButtonClick}
                 className="px-3.5 py-2 rounded-xl bg-white hover:bg-stone-100 text-slate-700 hover:text-slate-900 text-xs font-bold border border-stone-300 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-                title="Acceso exclusivo administración"
+                title={isAuthenticated ? 'Módulos de Gestión' : 'Acceso exclusivo administración'}
               >
-                <Lock className="w-3.5 h-3.5 text-slate-500" />
-                <span>Acceso / Login</span>
+                {isAuthenticated ? (
+                  <LayoutGrid className="w-3.5 h-3.5 text-slate-500" />
+                ) : (
+                  <Lock className="w-3.5 h-3.5 text-slate-500" />
+                )}
+                <span>{isAuthenticated ? 'Menú de Apps' : 'Acceso / Login'}</span>
               </button>
             </div>
           </div>
@@ -370,11 +406,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </a>
 
             <button
-              onClick={onSwitchToAdmin}
+              onClick={handleAdminButtonClick}
               className="px-6 py-3.5 rounded-xl bg-white hover:bg-stone-100 text-slate-800 font-bold text-sm border border-stone-300 shadow-xs transition-all flex items-center gap-2 cursor-pointer"
             >
-              <Lock className="w-4 h-4 text-slate-500" />
-              <span>Acceso / Login</span>
+              {isAuthenticated ? (
+                <LayoutGrid className="w-4 h-4 text-slate-500" />
+              ) : (
+                <Lock className="w-4 h-4 text-slate-500" />
+              )}
+              <span>{isAuthenticated ? 'Menú de Apps' : 'Acceso / Login'}</span>
             </button>
           </div>
         </div>
@@ -595,15 +635,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">Ciudad / Provincia *</label>
-                    <select
+                    <input
+                      type="text"
+                      required
                       value={clientCity}
                       onChange={(e) => setClientCity(e.target.value)}
+                      placeholder="Ej. Barcelona"
                       className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-[#580812]"
-                    >
-                      <option value="Barcelona">Barcelona & Área Metropolitana</option>
-                      <option value="Madrid">Madrid & Alrededores</option>
-                      <option value="Valencia">Valencia Capital & Costa</option>
-                    </select>
+                    />
                   </div>
                 </div>
 
@@ -668,12 +707,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   />
                 </div>
 
+                {bookingError && (
+                  <p className="text-xs font-bold text-red-600 bg-red-50 border border-red-200 rounded-xl px-3.5 py-2.5">
+                    {bookingError}
+                  </p>
+                )}
+
                 <button
                   type="submit"
-                  className="w-full py-3.5 rounded-xl bg-[#580812] hover:bg-[#42050D] text-white font-black text-sm shadow-lg shadow-[#580812]/30 transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
+                  disabled={isBookingSubmitting}
+                  className="w-full py-3.5 rounded-xl bg-[#580812] hover:bg-[#42050D] text-white font-black text-sm shadow-lg shadow-[#580812]/30 transition-all flex items-center justify-center gap-2 cursor-pointer mt-2 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <Send className="w-4 h-4" />
-                  <span>Confirmar Solicitud de Cita Gratuita</span>
+                  <span>{isBookingSubmitting ? 'Enviando...' : 'Confirmar Solicitud de Cita Gratuita'}</span>
                 </button>
               </form>
             </div>
@@ -697,13 +743,22 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
             <div className="flex items-center gap-4 bg-[#FAF8F5] p-4 rounded-2xl border border-stone-200 shrink-0">
               <div className="text-center">
-                <div className="text-3xl font-black text-[#0A192F]">4.9</div>
-                <div className="flex items-center justify-center gap-0.5 text-amber-400 mt-0.5">
+                <div className="text-3xl font-black text-[#0A192F]">
+                  {reviews.length > 0 ? avgRating.toFixed(1) : '—'}
+                </div>
+                <div className="flex items-center justify-center gap-0.5 mt-0.5">
                   {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-4 h-4 fill-amber-400" />
+                    <Star
+                      key={i}
+                      className={`w-4 h-4 ${
+                        i < Math.round(avgRating) ? 'text-amber-400 fill-amber-400' : 'text-stone-300'
+                      }`}
+                    />
                   ))}
                 </div>
-                <span className="text-[10px] text-slate-500 font-bold block mt-1">120+ Reseñas Verificadas</span>
+                <span className="text-[10px] text-slate-500 font-bold block mt-1">
+                  {reviews.length > 0 ? `${reviews.length} Reseñas Verificadas` : 'Sé el primero en opinar'}
+                </span>
               </div>
 
               <button
@@ -989,6 +1044,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 />
               </div>
 
+              {reviewError && (
+                <p className="text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                  {reviewError}
+                </p>
+              )}
+
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-stone-100">
                 <button
                   type="button"
@@ -1000,12 +1061,32 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#580812] hover:bg-[#42050D] text-white font-bold cursor-pointer shadow-md"
+                  disabled={isSavingReview}
+                  className="px-5 py-2 rounded-xl bg-[#580812] hover:bg-[#42050D] text-white font-bold cursor-pointer shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Publicar Opinión
+                  {isSavingReview ? 'Enviando...' : 'Publicar Opinión'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 8b. REVIEW PENDING CONFIRMATION MODAL */}
+      {isReviewPendingOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 border border-stone-200 text-center">
+            <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto" />
+            <h3 className="font-black text-lg text-slate-900">¡Gracias por tu opinión!</h3>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Tu reseña fue enviada y se publicará en la web en cuanto nuestro equipo la revise.
+            </p>
+            <button
+              onClick={() => setIsReviewPendingOpen(false)}
+              className="w-full px-4 py-2 rounded-xl bg-[#580812] hover:bg-[#42050D] text-white font-bold cursor-pointer"
+            >
+              Entendido
+            </button>
           </div>
         </div>
       )}
@@ -1133,11 +1214,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               Acceso restringido para jefes de obra, gestores y operarios de la empresa.
             </p>
             <button
-              onClick={onSwitchToAdmin}
+              onClick={handleAdminButtonClick}
               className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 flex items-center justify-center gap-2 cursor-pointer transition-all"
             >
-              <Lock className="w-3.5 h-3.5 text-stone-300" />
-              <span>Entrar al Portal ERP / Admin</span>
+              {isAuthenticated ? (
+                <LayoutGrid className="w-3.5 h-3.5 text-stone-300" />
+              ) : (
+                <Lock className="w-3.5 h-3.5 text-stone-300" />
+              )}
+              <span>{isAuthenticated ? 'Menú de Apps' : 'Entrar al Portal ERP / Admin'}</span>
             </button>
           </div>
         </div>

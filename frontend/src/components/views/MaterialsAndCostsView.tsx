@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Package,
   Plus,
@@ -12,14 +12,19 @@ import {
   CookingPot,
   Filter,
   X,
+  Wallet,
+  Loader2,
 } from 'lucide-react';
-import { MaterialPurchase, MaterialCategory, WorkOrder } from '../../types';
+import { MaterialPurchase, MaterialCategory, WorkOrder, Supplier } from '../../types';
+import { NewMaterialPurchaseInput, fetchSuppliers } from '../../lib/materials';
+import { ApiError } from '../../lib/api';
 
 interface MaterialsAndCostsViewProps {
   purchases: MaterialPurchase[];
   workOrders: WorkOrder[];
-  onSavePurchase: (purchase: MaterialPurchase) => void;
-  onUpdatePurchaseStatus: (id: string, status: MaterialPurchase['status']) => void;
+  onSavePurchase: (purchase: NewMaterialPurchaseInput) => Promise<void>;
+  onUpdatePurchaseStatus: (id: string, status: MaterialPurchase['status']) => Promise<void>;
+  onPayPurchase: (id: string) => Promise<void>;
 }
 
 export const MaterialsAndCostsView: React.FC<MaterialsAndCostsViewProps> = ({
@@ -27,17 +32,44 @@ export const MaterialsAndCostsView: React.FC<MaterialsAndCostsViewProps> = ({
   workOrders,
   onSavePurchase,
   onUpdatePurchaseStatus,
+  onPayPurchase,
 }) => {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [isNewPurchaseOpen, setIsNewPurchaseOpen] = useState(false);
+  const [payingId, setPayingId] = useState<string | null>(null);
 
   // Form State
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [linkedSupplierId, setLinkedSupplierId] = useState('');
   const [supplierName, setSupplierName] = useState('Porcelanosa Barcelona');
+  const [supplierPhone, setSupplierPhone] = useState('');
+  const [supplierEmail, setSupplierEmail] = useState('');
   const [selectedWorkOrderId, setSelectedWorkOrderId] = useState<string>(workOrders[0]?.id || '');
   const [category, setCategory] = useState<MaterialCategory>('azulejos_pavimentos');
   const [itemName, setItemName] = useState('Azulejo Porcelanosa 120x60 Mármol Calacatta');
   const [quantity, setQuantity] = useState<number>(15);
   const [unitPrice, setUnitPrice] = useState<number>(38);
+  const [purchaseError, setPurchaseError] = useState<string | null>(null);
+  const [isSavingPurchase, setIsSavingPurchase] = useState(false);
+
+  // Proveedores solo hacen falta para el desplegable "vincular existente" —
+  // se traen al abrir el modal, no en cada carga de la app.
+  useEffect(() => {
+    if (!isNewPurchaseOpen) return;
+    fetchSuppliers()
+      .then(setSuppliers)
+      .catch(() => setSuppliers([]));
+  }, [isNewPurchaseOpen]);
+
+  const handlePickExistingSupplier = (id: string) => {
+    setLinkedSupplierId(id);
+    const s = suppliers.find((sp) => sp.id === id);
+    if (s) {
+      setSupplierName(s.name);
+      setSupplierPhone(s.phone);
+      setSupplierEmail(s.email);
+    }
+  };
 
   const filteredPurchases = purchases.filter((p) => {
     if (categoryFilter !== 'all' && p.category !== categoryFilter) return false;
@@ -46,29 +78,43 @@ export const MaterialsAndCostsView: React.FC<MaterialsAndCostsViewProps> = ({
 
   const totalSpent = purchases.reduce((sum, p) => sum + p.totalPrice, 0);
 
-  const handleCreatePurchaseSubmit = (e: React.FormEvent) => {
+  const handleCreatePurchaseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const order = workOrders.find((w) => w.id === selectedWorkOrderId);
-    const totalPrice = quantity * unitPrice;
+    setPurchaseError(null);
+    setIsSavingPurchase(true);
+    try {
+      await onSavePurchase({
+        supplierName,
+        supplierId: linkedSupplierId || undefined,
+        supplierPhone: linkedSupplierId ? undefined : supplierPhone,
+        supplierEmail: linkedSupplierId ? undefined : supplierEmail,
+        workOrderId: selectedWorkOrderId || undefined,
+        category,
+        itemName,
+        quantity,
+        unitPrice,
+      });
+      setIsNewPurchaseOpen(false);
+      setLinkedSupplierId('');
+      setSupplierPhone('');
+      setSupplierEmail('');
+    } catch (err) {
+      setPurchaseError(err instanceof ApiError ? err.message : 'No se pudo registrar la compra.');
+    } finally {
+      setIsSavingPurchase(false);
+    }
+  };
 
-    const newP: MaterialPurchase = {
-      id: `mat-${Date.now()}`,
-      purchaseNumber: `COMP-2026-${Math.floor(130 + Math.random() * 50)}`,
-      supplierName,
-      workOrderId: order?.id,
-      workOrderTitle: order?.title || 'General Stock',
-      category,
-      itemName,
-      quantity,
-      unitPrice,
-      totalPrice,
-      purchaseDate: new Date().toISOString().split('T')[0],
-      deliveryDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      status: 'solicitado',
-    };
-
-    onSavePurchase(newP);
-    setIsNewPurchaseOpen(false);
+  const handlePay = async (id: string) => {
+    if (payingId) return;
+    setPayingId(id);
+    try {
+      await onPayPurchase(id);
+    } catch (err) {
+      console.error('No se pudo marcar como pagada.', err);
+    } finally {
+      setPayingId(null);
+    }
   };
 
   return (
@@ -101,7 +147,7 @@ export const MaterialsAndCostsView: React.FC<MaterialsAndCostsViewProps> = ({
         <div className="bg-white rounded-2xl p-5 shadow-sm">
           <div className="text-xs font-bold text-slate-500">Gasto Total en Materiales</div>
           <div className="text-2xl font-black text-[#0A192F] mt-1">
-            {totalSpent.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
+            {totalSpent.toLocaleString('es-ES', { minimumFractionDigits: 2 })} $
           </div>
         </div>
 
@@ -167,10 +213,10 @@ export const MaterialsAndCostsView: React.FC<MaterialsAndCostsViewProps> = ({
 
               <div className="text-right">
                 <div className="text-lg font-black text-[#0A192F]">
-                  {purchase.totalPrice.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
+                  {purchase.totalPrice.toLocaleString('es-ES', { minimumFractionDigits: 2 })} $
                 </div>
                 <div className="text-xs text-slate-500 font-medium">
-                  {purchase.quantity} ud x {purchase.unitPrice} €
+                  {purchase.quantity} ud x {purchase.unitPrice} $
                 </div>
               </div>
             </div>
@@ -195,10 +241,43 @@ export const MaterialsAndCostsView: React.FC<MaterialsAndCostsViewProps> = ({
 
               {purchase.status !== 'recibido' && (
                 <button
-                  onClick={() => onUpdatePurchaseStatus(purchase.id, 'recibido')}
+                  onClick={() =>
+                    onUpdatePurchaseStatus(purchase.id, 'recibido').catch((err) =>
+                      console.error('No se pudo confirmar la recepción.', err)
+                    )
+                  }
                   className="px-3 py-1.5 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold transition-colors cursor-pointer"
                 >
                   Confirmar Recepción en Obra
+                </button>
+              )}
+            </div>
+
+            {/* Payment Status & Action — sin esto la compra nunca genera un
+                movimiento real en tesorería, y por lo tanto nunca aparece en
+                el gasto que se publica a EsfuerzoVZ. */}
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-stone-100 text-xs">
+              <span
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-extrabold uppercase text-[10px] ${
+                  purchase.isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                }`}
+              >
+                <Wallet className="w-3.5 h-3.5" />
+                <span>{purchase.isPaid ? 'Pagado' : 'Pendiente de Pago'}</span>
+              </span>
+
+              {!purchase.isPaid && (
+                <button
+                  onClick={() => handlePay(purchase.id)}
+                  disabled={payingId === purchase.id}
+                  className="px-3 py-1.5 rounded-lg bg-[#0A192F] hover:bg-[#132a4d] disabled:opacity-50 text-white font-bold transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  {payingId === purchase.id ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <DollarSign className="w-3.5 h-3.5" />
+                  )}
+                  <span>Marcar como Pagado</span>
                 </button>
               )}
             </div>
@@ -236,16 +315,62 @@ export const MaterialsAndCostsView: React.FC<MaterialsAndCostsViewProps> = ({
                 </select>
               </div>
 
+              {suppliers.length > 0 && (
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Vincular a Proveedor Existente (opcional)</label>
+                  <select
+                    value={linkedSupplierId}
+                    onChange={(e) => handlePickExistingSupplier(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
+                  >
+                    <option value="">— Proveedor nuevo (sin vincular) —</option>
+                    {suppliers.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} {s.city ? `(${s.city})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="block text-slate-300 font-bold mb-1">Proveedor</label>
                 <input
                   type="text"
                   value={supplierName}
-                  onChange={(e) => setSupplierName(e.target.value)}
+                  onChange={(e) => {
+                    setSupplierName(e.target.value);
+                    setLinkedSupplierId('');
+                  }}
                   placeholder="Ej. Porcelanosa, Roca, Silestone"
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
                 />
               </div>
+
+              {!linkedSupplierId && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1">Teléfono Proveedor</label>
+                    <input
+                      type="text"
+                      value={supplierPhone}
+                      onChange={(e) => setSupplierPhone(e.target.value)}
+                      placeholder="Opcional"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1">Email Proveedor</label>
+                    <input
+                      type="email"
+                      value={supplierEmail}
+                      onChange={(e) => setSupplierEmail(e.target.value)}
+                      placeholder="Opcional"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-slate-300 font-bold mb-1">Nombre del Material</label>
@@ -268,7 +393,7 @@ export const MaterialsAndCostsView: React.FC<MaterialsAndCostsViewProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-300 font-bold mb-1">Precio Unitario (€)</label>
+                  <label className="block text-slate-300 font-bold mb-1">Precio Unitario ($)</label>
                   <input
                     type="number"
                     value={unitPrice}
@@ -281,9 +406,13 @@ export const MaterialsAndCostsView: React.FC<MaterialsAndCostsViewProps> = ({
               <div className="bg-slate-800 p-3 rounded-xl text-right">
                 <span className="text-slate-400">Total Compra:</span>
                 <span className="text-lg font-black text-amber-400 ml-2">
-                  {(quantity * unitPrice).toFixed(2)} €
+                  {(quantity * unitPrice).toFixed(2)} $
                 </span>
               </div>
+
+              {purchaseError && (
+                <div className="text-red-400 bg-red-950/40 border border-red-900 rounded-xl p-2.5">{purchaseError}</div>
+              )}
 
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
                 <button
@@ -295,9 +424,10 @@ export const MaterialsAndCostsView: React.FC<MaterialsAndCostsViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold"
+                  disabled={isSavingPurchase}
+                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold"
                 >
-                  Registrar Compra
+                  {isSavingPurchase ? 'Registrando...' : 'Registrar Compra'}
                 </button>
               </div>
             </form>

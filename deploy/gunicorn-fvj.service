@@ -1,0 +1,21 @@
+# Copiar a /etc/systemd/system/gunicorn-fvj.service, luego:
+#
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now gunicorn-fvj.service
+#
+# deploy.sh reinicia este servicio en cada deploy; no lo crea ni lo habilita.
+
+[Unit]
+Description=Gunicorn - FVJ Remodelaciones
+After=network.target
+
+[Service]
+User=efrain19091
+Group=www-data
+WorkingDirectory=/home/efrain19091/projects/fvj_remodelaciones/fvj_remodelaciones/backend
+ExecStart=/home/efrain19091/projects/fvj_remodelaciones/venv/bin/gunicorn core.wsgi:application --bind 127.0.0.1:8003 --workers 3
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

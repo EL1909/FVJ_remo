@@ -24,6 +24,16 @@ class UserAdmin(BaseUserAdmin):
         }),
     )
     inlines = [ProfileInline]
+
+    def get_inline_instances(self, request, obj=None):
+        # Al crear un usuario, el User todavía no existe: el inline no
+        # tendría un Profile que editar y terminaría intentando CREAR uno,
+        # chocando con el que ya genera la señal post_save al guardar el
+        # User (UNIQUE constraint en accounts_profile.user_id). Al editar
+        # sí se muestra: para entonces el Profile ya existe.
+        if obj is None:
+            return []
+        return super().get_inline_instances(request, obj)
     list_display = ('email', 'first_name', 'last_name', 'is_verified', 'is_staff', 'date_joined')
     list_filter = ('is_verified', 'is_staff', 'is_active')
     search_fields = ('email', 'first_name', 'last_name')

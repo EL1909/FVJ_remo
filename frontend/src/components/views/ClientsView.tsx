@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Users,
   Plus,
@@ -16,6 +16,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { Client, Estimate, WorkOrder, Invoice } from '../../types';
+import { NotesThread } from '../shared/NotesThread';
 
 interface ClientsViewProps {
   clients: Client[];
@@ -24,6 +25,11 @@ interface ClientsViewProps {
   invoices: Invoice[];
   onOpenNewClient: () => void;
   onSelectClientForEstimate: (client: Client) => void;
+  onAddClientNote: (clientId: string, text: string) => Promise<void>;
+  // Llega desde otra vista (ej. click en el cliente de una Orden de
+  // Trabajo): abre directo la ficha de ese cliente para ver notas/contacto.
+  focusClientId?: string | null;
+  onFocusClientConsumed?: () => void;
 }
 
 export const ClientsView: React.FC<ClientsViewProps> = ({
@@ -33,9 +39,28 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
   invoices,
   onOpenNewClient,
   onSelectClientForEstimate,
+  onAddClientNote,
+  focusClientId,
+  onFocusClientConsumed,
 }) => {
   const [search, setSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+
+  // El modal abierto debe reflejar notas nuevas apenas se agregan, no solo
+  // la foto del cliente en el momento de abrirlo.
+  useEffect(() => {
+    if (!selectedClient) return;
+    const fresh = clients.find((c) => c.id === selectedClient.id);
+    if (fresh && fresh !== selectedClient) setSelectedClient(fresh);
+  }, [clients, selectedClient]);
+
+  useEffect(() => {
+    if (!focusClientId) return;
+    const target = clients.find((c) => c.id === focusClientId);
+    if (target) setSelectedClient(target);
+    onFocusClientConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusClientId, clients]);
 
   const filteredClients = clients.filter(
     (c) =>
@@ -212,10 +237,15 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                   <div className="text-slate-200"><strong>Email:</strong> {selectedClient.email}</div>
                   <div className="text-slate-200"><strong>Dirección:</strong> {selectedClient.address}</div>
                 </div>
-                <div className="bg-slate-800/60 p-4 rounded-xl border border-slate-700/60 space-y-2">
-                  <div className="font-bold text-amber-400 uppercase tracking-wider text-[10px]">Notas de Preferencias</div>
-                  <p className="text-slate-300 italic">{selectedClient.notes || 'Sin notas especiales.'}</p>
-                </div>
+              </div>
+
+              <div className="bg-slate-800/60 p-4 rounded-xl border border-slate-700/60 space-y-2">
+                <div className="font-bold text-amber-400 uppercase tracking-wider text-[10px]">Notas</div>
+                <NotesThread
+                  notes={selectedClient.notes}
+                  onAddNote={(text) => onAddClientNote(selectedClient.id, text)}
+                  emptyLabel="Sin notas todavía."
+                />
               </div>
 
               {/* Quotes / Estimates History */}
@@ -242,7 +272,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                             <div className="text-slate-400 text-[11px]">{est.date} • {est.projectType}</div>
                           </div>
                           <div className="text-right">
-                            <div className="font-black text-amber-400 text-sm">{est.total.toLocaleString('es-ES')} €</div>
+                            <div className="font-black text-amber-400 text-sm">{est.total.toLocaleString('es-ES')} $</div>
                             <span className="uppercase text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">
                               {est.status}
                             </span>

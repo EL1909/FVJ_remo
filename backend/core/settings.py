@@ -172,10 +172,15 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
+#
+# Absolutas y con el prefijo /fvj/ a propósito: nginx pasa la ruta completa
+# (ver URL_PREFIX arriba), así que {% static %} en el admin debe generar
+# /fvj/static/... tal cual — relativo se resolvería contra la URL de la
+# página actual (ej. /fvj/admin/login/static/...) y rompería los estilos.
+STATIC_URL = '/fvj/static/'
+STATIC_ROOT = BASE_DIR / 'static'
 
-STATIC_URL = 'static/'
-
-MEDIA_URL = '/media/'
+MEDIA_URL = '/fvj/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://esfuerzovz.com/fvj')
@@ -206,5 +211,12 @@ EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'FVJ Remodelaciones <no-reply@esfuerzovz.com>')
+
+# Web Push (evz_core.push): vacías = avisos in-app funcionan pero sin push al
+# dispositivo. Generar el par con `vapid --gen` (paquete py-vapid) y no
+# comitear la privada.
+VAPID_PUBLIC_KEY = os.environ.get('VAPID_PUBLIC_KEY', '')
+VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY', '')
+VAPID_CLAIM_EMAIL = os.environ.get('VAPID_CLAIM_EMAIL', 'info@remodelacionesfvj.es')
 
 TEMPLATES[0]['DIRS'] = [BASE_DIR / 'templates']

@@ -21,6 +21,8 @@ import {
   AlertCircle,
   ChevronDown,
   ChevronUp,
+  Pencil,
+  MessageSquare,
 } from 'lucide-react';
 import {
   Employee,
@@ -31,15 +33,59 @@ import {
   CalendarEvent,
   ExpenseCategory,
 } from '../../types';
+import { NewEmployeeInput, UpdateEmployeeInput, NewExpenseInput } from '../../lib/personal';
+import { ApiError } from '../../lib/api';
+import { NotesThread } from '../shared/NotesThread';
 
 interface EmployeesViewProps {
   employees: Employee[];
   workOrders: WorkOrder[];
   calendarEvents: CalendarEvent[];
-  onSaveEmployee: (employee: Employee) => void;
-  onAddAssignment: (employeeId: string, assignment: EmployeeAssignment) => void;
-  onRemoveAssignment: (employeeId: string, assignmentId: string) => void;
-  onAddExpense: (expense: EmployeeExpense) => void;
+  onSaveEmployee: (employee: NewEmployeeInput) => Promise<void>;
+  onUpdateEmployee: (id: string, employee: UpdateEmployeeInput) => Promise<void>;
+  onAddEmployeeNote: (id: string, text: string) => Promise<void>;
+  onAssignEmployee: (employeeId: string, type: 'obra' | 'visita', targetId: string) => Promise<void>;
+  onUnassignEmployee: (employeeId: string, type: 'obra' | 'visita', targetId: string) => Promise<void>;
+  onAddExpense: (expense: NewExpenseInput) => Promise<void>;
+}
+
+// Las asignaciones activas de un empleado no son un campo propio: se derivan
+// de WorkOrder.assignedTeamIds y CalendarEvent.teamMemberId, que sí son la
+// fuente real que persiste en el backend (Task.team / Appointment.team_member).
+function getAssignmentsForEmployee(
+  emp: Employee,
+  workOrders: WorkOrder[],
+  calendarEvents: CalendarEvent[]
+): EmployeeAssignment[] {
+  const obras: EmployeeAssignment[] = workOrders
+    .filter((w) => w.assignedTeamIds.includes(emp.id) && w.status !== 'completado')
+    .map((w) => ({
+      id: `wo-${w.id}`,
+      employeeId: emp.id,
+      type: 'obra',
+      targetId: w.id,
+      targetTitle: w.title,
+      targetAddress: w.address,
+      roleInTask: 'Operario de Obra',
+      startDate: w.startDate,
+      status: 'activa',
+    }));
+
+  const visitas: EmployeeAssignment[] = calendarEvents
+    .filter((e) => e.teamMemberId === emp.id && !e.completed)
+    .map((e) => ({
+      id: `ev-${e.id}`,
+      employeeId: emp.id,
+      type: 'visita',
+      targetId: e.id,
+      targetTitle: e.title,
+      targetAddress: e.address,
+      roleInTask: 'Visita Técnica',
+      startDate: e.date,
+      status: 'activa',
+    }));
+
+  return [...obras, ...visitas];
 }
 
 export const EmployeesView: React.FC<EmployeesViewProps> = ({
@@ -47,14 +93,17 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
   workOrders,
   calendarEvents,
   onSaveEmployee,
-  onAddAssignment,
-  onRemoveAssignment,
+  onUpdateEmployee,
+  onAddEmployeeNote,
+  onAssignEmployee,
+  onUnassignEmployee,
   onAddExpense,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [expandedEmployeeId, setExpandedEmployeeId] = useState<string | null>(null);
+  const [expandedNotesEmployeeId, setExpandedNotesEmployeeId] = useState<string | null>(null);
 
   // Modal States
   const [isAddEmployeeOpen, setIsAddEmployeeOpen] = useState(false);
@@ -65,26 +114,30 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
   const [selectedEmpForAssignment, setSelectedEmpForAssignment] = useState<string>('');
   const [selectedEmpForExpense, setSelectedEmpForExpense] = useState<string>('');
 
-  // Form states - New Employee
+  // Form states - New/Edit Employee. null = creando; con valor = editando
+  // ese empleado (mismo modal y formulario para ambos casos).
+  const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
   const [newEmpName, setNewEmpName] = useState('');
   const [newEmpRole, setNewEmpRole] = useState<EmployeeRole>('fontanero');
   const [newEmpPhone, setNewEmpPhone] = useState('');
-  const [newEmpEmail, setNewEmpEmail] = useState('');
   const [newEmpSalaryType, setNewEmpSalaryType] = useState<'mensual' | 'por_hora' | 'por_obra'>('mensual');
   const [newEmpSalaryAmount, setNewEmpSalaryAmount] = useState<number>(2000);
-  const [newEmpNotes, setNewEmpNotes] = useState('');
+  const [newEmpBio, setNewEmpBio] = useState('');
+  const [newEmpIsActive, setNewEmpIsActive] = useState(true);
+  const [newEmpPhotoFile, setNewEmpPhotoFile] = useState<File | null>(null);
+  const [newEmpPhotoPreview, setNewEmpPhotoPreview] = useState<string | null>(null);
 
   // Form states - Assignment
   const [assignType, setAssignType] = useState<'obra' | 'visita'>('obra');
   const [assignTargetId, setAssignTargetId] = useState<string>('');
-  const [assignRoleInTask, setAssignRoleInTask] = useState('');
+  const [assignmentError, setAssignmentError] = useState<string | null>(null);
+  const [isSavingAssignment, setIsSavingAssignment] = useState(false);
 
   // Form states - Expense
   const [expConcept, setExpConcept] = useState('');
   const [expCategory, setExpCategory] = useState<ExpenseCategory>('desplazamiento_gasolina');
   const [expAmount, setExpAmount] = useState<number>(30);
   const [expDate, setExpDate] = useState(new Date().toISOString().split('T')[0]);
-  const [expWorkOrderId, setExpWorkOrderId] = useState<string>('');
 
   // Filtered list
   const filteredEmployees = employees.filter((emp) => {
@@ -110,113 +163,123 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
   const totalExpensesAmount = allExpenses.reduce((sum, exp) => sum + exp.amount, 0);
 
   const totalActiveAssignments = employees.reduce(
-    (sum, e) => sum + e.activeAssignments.length,
+    (sum, e) => sum + getAssignmentsForEmployee(e, workOrders, calendarEvents).length,
     0
   );
 
-  const handleCreateEmployeeSubmit = (e: React.FormEvent) => {
+  const [employeeFormError, setEmployeeFormError] = useState<string | null>(null);
+  const [isSavingEmployee, setIsSavingEmployee] = useState(false);
+
+  const handleCreateEmployeeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newEmpName.trim()) return;
 
-    const newEmp: Employee = {
-      id: `emp-${Date.now()}`,
-      name: newEmpName.trim(),
-      role: newEmpRole,
-      phone: newEmpPhone.trim() || '+34 600 000 000',
-      email: newEmpEmail.trim() || `${newEmpName.toLowerCase().replace(/\s+/g, '.')}@remodelacionesfvj.es`,
-      salaryType: newEmpSalaryType,
-      salaryAmount: Number(newEmpSalaryAmount) || 2000,
-      status: 'activo',
-      startDate: new Date().toISOString().split('T')[0],
-      notes: newEmpNotes.trim(),
-      activeAssignments: [],
-      expenses: [],
-      avatar: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80`,
-    };
+    setEmployeeFormError(null);
+    setIsSavingEmployee(true);
+    try {
+      const input: NewEmployeeInput = {
+        name: newEmpName.trim(),
+        role: newEmpRole,
+        phone: newEmpPhone.trim(),
+        salaryType: newEmpSalaryType,
+        salaryAmount: Number(newEmpSalaryAmount) || 0,
+        bio: newEmpBio.trim(),
+        photo: newEmpPhotoFile || undefined,
+      };
+      if (editingEmployeeId) {
+        await onUpdateEmployee(editingEmployeeId, { ...input, isActive: newEmpIsActive });
+      } else {
+        await onSaveEmployee(input);
+      }
+      setIsAddEmployeeOpen(false);
+      resetNewEmpForm();
+    } catch (err) {
+      setEmployeeFormError(
+        err instanceof ApiError ? err.message : 'No se pudo guardar el empleado.'
+      );
+    } finally {
+      setIsSavingEmployee(false);
+    }
+  };
 
-    onSaveEmployee(newEmp);
-    setIsAddEmployeeOpen(false);
-    resetNewEmpForm();
+  const handleOpenEditEmployee = (emp: Employee) => {
+    setEditingEmployeeId(emp.id);
+    setNewEmpName(emp.name);
+    setNewEmpRole(emp.role);
+    setNewEmpPhone(emp.phone);
+    setNewEmpSalaryType(emp.salaryType);
+    setNewEmpSalaryAmount(emp.salaryAmount);
+    setNewEmpBio(emp.bio || '');
+    setNewEmpIsActive(emp.status === 'activo');
+    setNewEmpPhotoFile(null);
+    setNewEmpPhotoPreview(emp.avatar || null);
+    setEmployeeFormError(null);
+    setIsAddEmployeeOpen(true);
+  };
+
+  const handlePhotoFileChange = (file: File | null) => {
+    setNewEmpPhotoFile(file);
+    setNewEmpPhotoPreview(file ? URL.createObjectURL(file) : null);
   };
 
   const resetNewEmpForm = () => {
+    setEditingEmployeeId(null);
     setNewEmpName('');
     setNewEmpRole('fontanero');
     setNewEmpPhone('');
-    setNewEmpEmail('');
+    setNewEmpSalaryType('mensual');
     setNewEmpSalaryAmount(2000);
-    setNewEmpNotes('');
+    setNewEmpBio('');
+    setNewEmpIsActive(true);
+    setNewEmpPhotoFile(null);
+    setNewEmpPhotoPreview(null);
   };
 
-  const handleCreateAssignmentSubmit = (e: React.FormEvent) => {
+  const handleCreateAssignmentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedEmpForAssignment || !assignTargetId) return;
+    if (!selectedEmpForAssignment || !assignTargetId || isSavingAssignment) return;
 
-    let targetTitle = '';
-    let targetAddress = '';
-
-    if (assignType === 'obra') {
-      const wo = workOrders.find((w) => w.id === assignTargetId);
-      if (wo) {
-        targetTitle = wo.title;
-        targetAddress = wo.address;
-      }
-    } else {
-      const evt = calendarEvents.find((c) => c.id === assignTargetId);
-      if (evt) {
-        targetTitle = evt.title;
-        targetAddress = evt.address;
-      }
+    setAssignmentError(null);
+    setIsSavingAssignment(true);
+    try {
+      await onAssignEmployee(selectedEmpForAssignment, assignType, assignTargetId);
+      setIsAssignModalOpen(false);
+      setAssignTargetId('');
+    } catch (err) {
+      setAssignmentError(err instanceof ApiError ? err.message : 'No se pudo asignar el empleado.');
+    } finally {
+      setIsSavingAssignment(false);
     }
-
-    const newAsg: EmployeeAssignment = {
-      id: `asg-${Date.now()}`,
-      employeeId: selectedEmpForAssignment,
-      type: assignType,
-      targetId: assignTargetId,
-      targetTitle: targetTitle || 'Tarea Asignada',
-      targetAddress: targetAddress || 'Ubicación de cliente',
-      roleInTask: assignRoleInTask.trim() || (assignType === 'obra' ? 'Operario de Obra' : 'Visita Técnica'),
-      startDate: new Date().toISOString().split('T')[0],
-      status: 'activa',
-    };
-
-    onAddAssignment(selectedEmpForAssignment, newAsg);
-    setIsAssignModalOpen(false);
-    setAssignTargetId('');
-    setAssignRoleInTask('');
   };
 
-  const handleCreateExpenseSubmit = (e: React.FormEvent) => {
+  const [expenseFormError, setExpenseFormError] = useState<string | null>(null);
+  const [isSavingExpense, setIsSavingExpense] = useState(false);
+
+  const handleCreateExpenseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedEmpForExpense || !expConcept.trim()) return;
 
     const emp = employees.find((e) => e.id === selectedEmpForExpense);
-
-    let woTitle = '';
-    if (expWorkOrderId) {
-      const wo = workOrders.find((w) => w.id === expWorkOrderId);
-      if (wo) woTitle = wo.title;
+    setExpenseFormError(null);
+    setIsSavingExpense(true);
+    try {
+      await onAddExpense({
+        employeeId: selectedEmpForExpense,
+        employeeName: emp?.name || 'Empleado',
+        concept: expConcept.trim(),
+        category: expCategory,
+        amount: Number(expAmount) || 0,
+        date: expDate,
+        workOrderId: undefined,
+      });
+      setIsExpenseModalOpen(false);
+      setExpConcept('');
+      setExpAmount(30);
+    } catch (err) {
+      setExpenseFormError(err instanceof ApiError ? err.message : 'No se pudo registrar el gasto.');
+    } finally {
+      setIsSavingExpense(false);
     }
-
-    const newExp: EmployeeExpense = {
-      id: `exp-${Date.now()}`,
-      employeeId: selectedEmpForExpense,
-      employeeName: emp?.name || 'Empleado',
-      concept: expConcept.trim(),
-      category: expCategory,
-      amount: Number(expAmount) || 0,
-      date: expDate,
-      status: 'pendiente',
-      workOrderId: expWorkOrderId || undefined,
-      workOrderTitle: woTitle || undefined,
-    };
-
-    onAddExpense(newExp);
-    setIsExpenseModalOpen(false);
-    setExpConcept('');
-    setExpAmount(30);
-    setExpWorkOrderId('');
   };
 
   const getRoleBadgeLabel = (role: EmployeeRole) => {
@@ -276,7 +339,10 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
 
         <div className="flex flex-wrap items-center gap-2.5 self-start lg:self-auto">
           <button
-            onClick={() => setIsAddEmployeeOpen(true)}
+            onClick={() => {
+              resetNewEmpForm();
+              setIsAddEmployeeOpen(true);
+            }}
             className="px-4 py-2.5 rounded-xl bg-[#580812] hover:bg-[#42050D] text-white font-bold text-xs shadow-lg shadow-[#580812]/40 transition-all flex items-center gap-2 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
@@ -336,7 +402,7 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
             </div>
           </div>
           <div className="text-2xl font-black text-[#0A192F] mt-2">
-            {totalMonthlySalaries.toLocaleString('es-ES')} €
+            {totalMonthlySalaries.toLocaleString('es-ES')} $
           </div>
           <div className="text-xs font-medium text-slate-500 mt-1">
             Presupuesto estimado nómina base
@@ -351,7 +417,7 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
             </div>
           </div>
           <div className="text-2xl font-black text-[#0A192F] mt-2">
-            {totalExpensesAmount.toLocaleString('es-ES')} €
+            {totalExpensesAmount.toLocaleString('es-ES')} $
           </div>
           <div className="text-xs font-bold text-[#580812] mt-1">
             {allExpenses.length} recibos de dietas, gasolina y material
@@ -422,6 +488,7 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
           const roleInfo = getRoleBadgeLabel(emp.role);
           const isExpanded = expandedEmployeeId === emp.id;
           const totalEmpExpenses = emp.expenses.reduce((sum, exp) => sum + exp.amount, 0);
+          const empAssignments = getAssignmentsForEmployee(emp, workOrders, calendarEvents);
 
           return (
             <div
@@ -446,17 +513,26 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                       </div>
                     </div>
 
-                    <span
-                      className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shrink-0 ${
-                        emp.status === 'activo'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : emp.status === 'de_baja'
-                          ? 'bg-rose-100 text-rose-800'
-                          : 'bg-amber-100 text-amber-800'
-                      }`}
-                    >
-                      {emp.status}
-                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span
+                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                          emp.status === 'activo'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : emp.status === 'de_baja'
+                            ? 'bg-rose-100 text-rose-800'
+                            : 'bg-amber-100 text-amber-800'
+                        }`}
+                      >
+                        {emp.status}
+                      </span>
+                      <button
+                        onClick={() => handleOpenEditEmployee(emp)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-[#580812] hover:bg-stone-100 transition-colors cursor-pointer"
+                        title="Editar empleado"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Contact Info */}
@@ -477,7 +553,7 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                   <div>
                     <span className="text-[10px] uppercase font-bold text-slate-400 block">Sueldo / Tarifa</span>
                     <span className="text-sm font-black text-[#0A192F]">
-                      {emp.salaryAmount.toLocaleString('es-ES')} €{' '}
+                      {emp.salaryAmount.toLocaleString('es-ES')} ${' '}
                       <span className="text-[11px] font-semibold text-slate-500">
                         ({emp.salaryType})
                       </span>
@@ -487,7 +563,7 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                   <div className="text-right">
                     <span className="text-[10px] uppercase font-bold text-slate-400 block">Gastos Reportados</span>
                     <span className="text-sm font-black text-[#580812]">
-                      {totalEmpExpenses.toLocaleString('es-ES')} €
+                      {totalEmpExpenses.toLocaleString('es-ES')} $
                     </span>
                   </div>
                 </div>
@@ -497,7 +573,7 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                   <div className="flex items-center justify-between">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
                       <Briefcase className="w-3.5 h-3.5 text-[#580812]" />
-                      <span>Obras y Visitas Asignadas ({emp.activeAssignments.length})</span>
+                      <span>Obras y Visitas Asignadas ({empAssignments.length})</span>
                     </h4>
 
                     <button
@@ -512,13 +588,13 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                     </button>
                   </div>
 
-                  {emp.activeAssignments.length === 0 ? (
+                  {empAssignments.length === 0 ? (
                     <div className="p-3 rounded-xl bg-stone-50 border border-dashed border-stone-200 text-center text-xs text-stone-400">
                       Sin obras o visitas asignadas actualmente
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {emp.activeAssignments.map((asg) => (
+                      {empAssignments.map((asg) => (
                         <div
                           key={asg.id}
                           className="p-2.5 rounded-xl bg-white border border-stone-200 shadow-xs space-y-1 relative group"
@@ -533,7 +609,7 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                             </span>
 
                             <button
-                              onClick={() => onRemoveAssignment(emp.id, asg.id)}
+                              onClick={() => onUnassignEmployee(emp.id, asg.type, asg.targetId)}
                               className="text-stone-300 hover:text-rose-600 transition-colors p-0.5 cursor-pointer opacity-80 group-hover:opacity-100"
                               title="Finalizar/Retirar asignación"
                             >
@@ -597,7 +673,7 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                         >
                           <div className="flex items-center justify-between font-bold">
                             <span className="text-slate-900">{exp.concept}</span>
-                            <span className="text-[#580812] font-black">{exp.amount} €</span>
+                            <span className="text-[#580812] font-black">{exp.amount} $</span>
                           </div>
 
                           <div className="flex items-center justify-between text-[10px] text-slate-500">
@@ -608,6 +684,8 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                                   ? 'bg-emerald-100 text-emerald-800'
                                   : exp.status === 'reembolsado'
                                   ? 'bg-blue-100 text-blue-800'
+                                  : exp.status === 'rechazado'
+                                  ? 'bg-rose-100 text-rose-800'
                                   : 'bg-amber-100 text-amber-800'
                               }`}
                             >
@@ -626,6 +704,33 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                   </div>
                 )}
               </div>
+
+              {/* Expandable Notes Thread */}
+              <div className="border-t border-stone-100 p-4 bg-stone-50/60">
+                <button
+                  onClick={() => setExpandedNotesEmployeeId(expandedNotesEmployeeId === emp.id ? null : emp.id)}
+                  className="text-xs font-bold text-slate-700 hover:text-[#580812] flex items-center gap-1 cursor-pointer"
+                >
+                  <MessageSquare className="w-3.5 h-3.5 text-[#580812]" />
+                  <span>Notas ({emp.notes.length})</span>
+                  {expandedNotesEmployeeId === emp.id ? (
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  ) : (
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  )}
+                </button>
+
+                {expandedNotesEmployeeId === emp.id && (
+                  <div className="mt-3 pt-3 border-t border-stone-200">
+                    <div className="bg-slate-900 rounded-xl p-4">
+                      <NotesThread
+                        notes={emp.notes}
+                        onAddNote={(text) => onAddEmployeeNote(emp.id, text)}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           );
         })}
@@ -638,10 +743,15 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
             <div className="flex items-center justify-between border-b border-stone-100 pb-3">
               <div className="flex items-center gap-2 text-[#0A192F]">
                 <UserCheck className="w-5 h-5 text-[#580812]" />
-                <h3 className="font-black text-lg">Registrar Nuevo Empleado</h3>
+                <h3 className="font-black text-lg">
+                  {editingEmployeeId ? 'Editar Empleado' : 'Registrar Nuevo Empleado'}
+                </h3>
               </div>
               <button
-                onClick={() => setIsAddEmployeeOpen(false)}
+                onClick={() => {
+                  setIsAddEmployeeOpen(false);
+                  resetNewEmpForm();
+                }}
                 className="p-1 rounded-lg text-stone-400 hover:text-stone-700 cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -649,6 +759,26 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
             </div>
 
             <form onSubmit={handleCreateEmployeeSubmit} className="space-y-4 text-xs">
+              <div className="flex items-center gap-4">
+                <img
+                  src={
+                    newEmpPhotoPreview ||
+                    'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80'
+                  }
+                  alt="Foto de perfil"
+                  className="w-16 h-16 rounded-2xl object-cover border border-stone-200 shadow-sm shrink-0"
+                />
+                <div className="flex-1">
+                  <label className="block font-bold text-slate-700 mb-1">Foto de Perfil</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handlePhotoFileChange(e.target.files?.[0] || null)}
+                    className="w-full text-[11px] text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-[#580812] file:text-white file:text-[11px] file:font-bold file:cursor-pointer cursor-pointer"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Nombre Completo *</label>
                 <input
@@ -691,16 +821,9 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                 </div>
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Correo Electrónico</label>
-                <input
-                  type="email"
-                  value={newEmpEmail}
-                  onChange={(e) => setNewEmpEmail(e.target.value)}
-                  placeholder="roberto.sanchez@remodelacionesfvj.es"
-                  className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#580812]"
-                />
-              </div>
+              <p className="text-[11px] text-slate-500">
+                El acceso al panel (email/contraseña) se activa después, por separado.
+              </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -710,14 +833,14 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                     onChange={(e) => setNewEmpSalaryType(e.target.value as any)}
                     className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#580812]"
                   >
-                    <option value="mensual">Sueldo Mensual (€/mes)</option>
-                    <option value="por_hora">Tarifa por Hora (€/h)</option>
-                    <option value="por_obra">Por Ajuste de Obra (€/obra)</option>
+                    <option value="mensual">Sueldo Mensual ($/mes)</option>
+                    <option value="por_hora">Tarifa por Hora ($/h)</option>
+                    <option value="por_obra">Por Ajuste de Obra ($/obra)</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Importe Base (€) *</label>
+                  <label className="block font-bold text-slate-700 mb-1">Importe Base ($) *</label>
                   <input
                     type="number"
                     required
@@ -733,17 +856,39 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                 <label className="block font-bold text-slate-700 mb-1">Observaciones o Certificaciones</label>
                 <textarea
                   rows={2}
-                  value={newEmpNotes}
-                  onChange={(e) => setNewEmpNotes(e.target.value)}
+                  value={newEmpBio}
+                  onChange={(e) => setNewEmpBio(e.target.value)}
                   placeholder="Ej. Carnet de conducir B, curso PRL 20h instalaciones de agua y prevención..."
                   className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#580812]"
                 />
               </div>
 
+              {editingEmployeeId && (
+                <label className="flex items-center gap-2 font-bold text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newEmpIsActive}
+                    onChange={(e) => setNewEmpIsActive(e.target.checked)}
+                    className="w-4 h-4 accent-[#580812]"
+                  />
+                  <span>Empleado activo</span>
+                </label>
+              )}
+
+              {employeeFormError && (
+                <div className="flex items-start gap-2 text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-2.5">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{employeeFormError}</span>
+                </div>
+              )}
+
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-stone-100">
                 <button
                   type="button"
-                  onClick={() => setIsAddEmployeeOpen(false)}
+                  onClick={() => {
+                    setIsAddEmployeeOpen(false);
+                    resetNewEmpForm();
+                  }}
                   className="px-4 py-2 rounded-xl text-stone-600 hover:bg-stone-100 font-bold cursor-pointer"
                 >
                   Cancelar
@@ -751,9 +896,14 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
 
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#580812] hover:bg-[#42050D] text-white font-bold cursor-pointer shadow-md shadow-[#580812]/30"
+                  disabled={isSavingEmployee}
+                  className="px-5 py-2 rounded-xl bg-[#580812] hover:bg-[#42050D] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold cursor-pointer shadow-md shadow-[#580812]/30"
                 >
-                  Guardar Empleado
+                  {isSavingEmployee
+                    ? 'Guardando...'
+                    : editingEmployeeId
+                    ? 'Guardar Cambios'
+                    : 'Guardar Empleado'}
                 </button>
               </div>
             </form>
@@ -865,16 +1015,12 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                 )}
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Rol / Tarea Específica</label>
-                <input
-                  type="text"
-                  value={assignRoleInTask}
-                  onChange={(e) => setAssignRoleInTask(e.target.value)}
-                  placeholder="Ej. Alicatado pared frontal, montaje de mampara, toma de presiones..."
-                  className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#580812]"
-                />
-              </div>
+              {assignmentError && (
+                <div className="flex items-start gap-2 text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-2.5">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{assignmentError}</span>
+                </div>
+              )}
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-stone-100">
                 <button
@@ -887,10 +1033,10 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
 
                 <button
                   type="submit"
-                  disabled={!assignTargetId}
+                  disabled={!assignTargetId || isSavingAssignment}
                   className="px-5 py-2 rounded-xl bg-[#580812] hover:bg-[#42050D] disabled:opacity-50 text-white font-bold cursor-pointer shadow-md shadow-[#580812]/30"
                 >
-                  Confirmar Asignación
+                  {isSavingAssignment ? 'Asignando...' : 'Confirmar Asignación'}
                 </button>
               </div>
             </form>
@@ -960,7 +1106,7 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Importe (€) *</label>
+                  <label className="block font-bold text-slate-700 mb-1">Importe ($) *</label>
                   <input
                     type="number"
                     required
@@ -973,34 +1119,23 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Fecha del Ticket *</label>
-                  <input
-                    type="date"
-                    required
-                    value={expDate}
-                    onChange={(e) => setExpDate(e.target.value)}
-                    className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#580812]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Vincular a Obra (Opcional)</label>
-                  <select
-                    value={expWorkOrderId}
-                    onChange={(e) => setExpWorkOrderId(e.target.value)}
-                    className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#580812]"
-                  >
-                    <option value="">-- Sin obra asociada --</option>
-                    {workOrders.map((wo) => (
-                      <option key={wo.id} value={wo.id}>
-                        {wo.orderNumber} - {wo.title}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Fecha del Ticket *</label>
+                <input
+                  type="date"
+                  required
+                  value={expDate}
+                  onChange={(e) => setExpDate(e.target.value)}
+                  className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#580812]"
+                />
               </div>
+
+              {expenseFormError && (
+                <div className="flex items-start gap-2 text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-2.5">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{expenseFormError}</span>
+                </div>
+              )}
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-stone-100">
                 <button
@@ -1013,9 +1148,10 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
 
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#580812] hover:bg-[#42050D] text-white font-bold cursor-pointer shadow-md shadow-[#580812]/30"
+                  disabled={isSavingExpense}
+                  className="px-5 py-2 rounded-xl bg-[#580812] hover:bg-[#42050D] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold cursor-pointer shadow-md shadow-[#580812]/30"
                 >
-                  Guardar Gasto
+                  {isSavingExpense ? 'Guardando...' : 'Guardar Gasto'}
                 </button>
               </div>
             </form>

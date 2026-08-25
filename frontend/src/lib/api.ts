@@ -1,4 +1,10 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8002/fvj/api';
+// VITE_API_URL (.env.local) manda en desarrollo, donde front y back corren
+// en puertos distintos. Sin esa variable —tal cual queda un build de
+// producción sin .env.production— el fallback debe seguir funcionando: por
+// eso es relativo a BASE_URL (mismo /fvj/ que vite build --base=/fvj/) en
+// vez de un localhost hardcodeado, que en el navegador de cada visitante
+// apuntaría a su propia máquina, no al servidor.
+export const API_URL = import.meta.env.VITE_API_URL || `${import.meta.env.BASE_URL}api`;
 
 const ACCESS_TOKEN_KEY = 'fvj_access_token';
 const REFRESH_TOKEN_KEY = 'fvj_refresh_token';
@@ -13,6 +19,49 @@ export class ApiError extends Error {
 
 export function getAccessToken(): string | null {
   return localStorage.getItem(ACCESS_TOKEN_KEY);
+}
+
+/**
+ * Extrae un mensaje legible de un error de DRF: puede venir como
+ * { detail: "..." } (errores de negocio, ApiError) o como
+ * { campo: ["mensaje"] } (errores de validación de un serializer).
+ */
+function parseErrorMessage(data: any): string {
+  if (!data || typeof data !== 'object') return 'Ocurrió un error inesperado.';
+  if (typeof data.detail === 'string') return data.detail;
+  if (typeof data.error === 'string') return data.error;
+  const mensajes = Object.values(data).flat().filter((v) => typeof v === 'string');
+  return mensajes.length > 0 ? mensajes.join(' ') : 'Ocurrió un error inesperado.';
+}
+
+/**
+ * fetch autenticado hacia el backend de FVJ. Todos los módulos del panel
+ * (crm, billing, fieldwork, treasury...) lo usan en vez de fetch directo:
+ * agrega el Bearer token, arma la URL y parsea errores de forma uniforme.
+ */
+export async function apiFetch<T>(path: string, options: Omit<RequestInit, 'body'> & { body?: any } = {}): Promise<T> {
+  const token = getAccessToken();
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string> | undefined),
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  let body = options.body;
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+  if (body && !isFormData && typeof body !== 'string') {
+    headers['Content-Type'] = 'application/json';
+    body = JSON.stringify(body);
+  }
+
+  const res = await fetch(`${API_URL}${path}`, { ...options, headers, body });
+
+  if (res.status === 204) return undefined as T;
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new ApiError(parseErrorMessage(data), res.status);
+  }
+  return data as T;
 }
 
 function setTokens(access: string, refresh: string) {

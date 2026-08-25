@@ -17,11 +17,13 @@ import {
   X,
 } from 'lucide-react';
 import { SocialPost, WorkOrder } from '../../types';
+import { NewSocialPostInput } from '../../lib/showcase';
+import { ApiError } from '../../lib/api';
 
 interface SocialGalleryViewProps {
   socialPosts: SocialPost[];
   workOrders: WorkOrder[];
-  onAddSocialPost: (post: SocialPost) => void;
+  onAddSocialPost: (post: NewSocialPostInput) => Promise<void>;
 }
 
 export const SocialGalleryView: React.FC<SocialGalleryViewProps> = ({
@@ -33,10 +35,24 @@ export const SocialGalleryView: React.FC<SocialGalleryViewProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isPublisherOpen, setIsPublisherOpen] = useState(false);
 
-  // Form state
+  // Form state — el post ya existe en TikTok/Instagram (se sube ahí con la
+  // app de cada red); esto solo registra la vitrina, con lo que el equipo
+  // ve en la app real. No hay integración con sus APIs.
   const [title, setTitle] = useState('');
   const [platform, setPlatform] = useState<'tiktok' | 'instagram'>('tiktok');
   const [projectType, setProjectType] = useState<'baño' | 'cocina' | 'integral'>('baño');
+  const [postUrl, setPostUrl] = useState('');
+  const [thumbnail, setThumbnail] = useState<File | null>(null);
+  const [publishedDate, setPublishedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [relatedWorkOrderId, setRelatedWorkOrderId] = useState('');
+  const [views, setViews] = useState<number>(0);
+  const [likes, setLikes] = useState<number>(0);
+  const [commentsCount, setCommentsCount] = useState<number>(0);
+  const [sharesCount, setSharesCount] = useState<number>(0);
+  const [leadsGenerated, setLeadsGenerated] = useState<number>(0);
+  const [tagsInput, setTagsInput] = useState('#Remodelacion, #RemodelacionesFVJ');
+  const [postError, setPostError] = useState<string | null>(null);
+  const [isSavingPost, setIsSavingPost] = useState(false);
 
   const filteredPosts = socialPosts.filter((p) => {
     if (platformFilter !== 'all' && p.platform !== platformFilter) return false;
@@ -52,30 +68,46 @@ export const SocialGalleryView: React.FC<SocialGalleryViewProps> = ({
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const handleCreatePost = (e: React.FormEvent) => {
-    e.preventDefault();
-    const newPost: SocialPost = {
-      id: `soc-${Date.now()}`,
-      platform,
-      title: title || '🔥 Nueva transformación de baño/cocina por Remodelaciones FVJ',
-      thumbnailUrl:
-        projectType === 'baño'
-          ? 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=600&q=80'
-          : 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=600&q=80',
-      postUrl: `https://${platform}.com/@remodelaciones_fvj`,
-      views: 12500,
-      likes: 980,
-      commentsCount: 34,
-      sharesCount: 110,
-      publishedDate: new Date().toISOString().split('T')[0],
-      projectType,
-      leadsGenerated: 5,
-      tags: ['#Remodelacion', `#${projectType.toUpperCase()}`, '#RemodelacionesFVJ'],
-    };
-
-    onAddSocialPost(newPost);
-    setIsPublisherOpen(false);
+  const resetForm = () => {
     setTitle('');
+    setPostUrl('');
+    setThumbnail(null);
+    setViews(0);
+    setLikes(0);
+    setCommentsCount(0);
+    setSharesCount(0);
+    setLeadsGenerated(0);
+  };
+
+  const handleCreatePost = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!postUrl.trim()) return;
+
+    setPostError(null);
+    setIsSavingPost(true);
+    try {
+      await onAddSocialPost({
+        platform,
+        title: title || '🔥 Nueva transformación de baño/cocina por Remodelaciones FVJ',
+        postUrl: postUrl.trim(),
+        thumbnail: thumbnail || undefined,
+        publishedDate,
+        projectType,
+        views,
+        likes,
+        commentsCount,
+        sharesCount,
+        leadsGenerated,
+        workOrderId: relatedWorkOrderId || undefined,
+        tags: tagsInput.split(',').map((t) => t.trim()).filter(Boolean),
+      });
+      setIsPublisherOpen(false);
+      resetForm();
+    } catch (err) {
+      setPostError(err instanceof ApiError ? err.message : 'No se pudo registrar la publicación.');
+    } finally {
+      setIsSavingPost(false);
+    }
   };
 
   return (
@@ -330,6 +362,118 @@ export const SocialGalleryView: React.FC<SocialGalleryViewProps> = ({
                 />
               </div>
 
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">Link del post (ya publicado) *</label>
+                <input
+                  type="url"
+                  required
+                  value={postUrl}
+                  onChange={(e) => setPostUrl(e.target.value)}
+                  placeholder="https://www.tiktok.com/@remodelacionesfvj/video/..."
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Miniatura</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setThumbnail(e.target.files?.[0] || null)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-1.5 text-white text-[11px] file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-pink-500 file:text-white file:font-bold file:cursor-pointer"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Fecha de publicación</label>
+                  <input
+                    type="date"
+                    value={publishedDate}
+                    onChange={(e) => setPublishedDate(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
+                  />
+                </div>
+              </div>
+
+              {workOrders.length > 0 && (
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Obra relacionada (opcional)</label>
+                  <select
+                    value={relatedWorkOrderId}
+                    onChange={(e) => setRelatedWorkOrderId(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
+                  >
+                    <option value="">-- Sin obra asociada --</option>
+                    {workOrders.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.orderNumber} - {w.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <p className="text-[11px] text-slate-500">
+                Las métricas se copian a mano desde lo que ves en la app — no hay sincronización automática.
+              </p>
+              <div className="grid grid-cols-4 gap-2">
+                <div>
+                  <label className="block text-slate-400 text-[10px] mb-1">Vistas</label>
+                  <input
+                    type="number" min="0" value={views}
+                    onChange={(e) => setViews(parseInt(e.target.value) || 0)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 text-[10px] mb-1">Likes</label>
+                  <input
+                    type="number" min="0" value={likes}
+                    onChange={(e) => setLikes(parseInt(e.target.value) || 0)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 text-[10px] mb-1">Coment.</label>
+                  <input
+                    type="number" min="0" value={commentsCount}
+                    onChange={(e) => setCommentsCount(parseInt(e.target.value) || 0)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 text-[10px] mb-1">Compart.</label>
+                  <input
+                    type="number" min="0" value={sharesCount}
+                    onChange={(e) => setSharesCount(parseInt(e.target.value) || 0)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">Leads generados (estimado)</label>
+                <input
+                  type="number" min="0" value={leadsGenerated}
+                  onChange={(e) => setLeadsGenerated(parseInt(e.target.value) || 0)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">Etiquetas (separadas por coma)</label>
+                <input
+                  type="text"
+                  value={tagsInput}
+                  onChange={(e) => setTagsInput(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
+                />
+              </div>
+
+              {postError && (
+                <div className="text-red-400 bg-red-950/40 border border-red-900 rounded-xl p-2.5">{postError}</div>
+              )}
+
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
                 <button
                   type="button"
@@ -340,9 +484,10 @@ export const SocialGalleryView: React.FC<SocialGalleryViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-pink-500 hover:bg-pink-400 text-white font-bold"
+                  disabled={isSavingPost}
+                  className="px-5 py-2 rounded-xl bg-pink-500 hover:bg-pink-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold"
                 >
-                  Publicar en Registro
+                  {isSavingPost ? 'Publicando...' : 'Publicar en Registro'}
                 </button>
               </div>
             </form>
