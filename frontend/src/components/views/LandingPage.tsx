@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Bath,
   CookingPot,
@@ -105,8 +105,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [reviewError, setReviewError] = useState('');
   const [isReviewPendingOpen, setIsReviewPendingOpen] = useState(false);
 
-  // Selected Project Detail Modal
-  const [selectedProject, setSelectedProject] = useState<WorkOrder | null>(null);
+  // Selected Project Detail Modal — puede ser un WebsiteProject (CMS) o un
+  // WorkOrder (fallback cuando no hay proyectos curados), de ahí `any`.
+  const [selectedProject, setSelectedProject] = useState<any | null>(null);
+  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
+
+  // Vídeo de portada — playbackRate no es un atributo HTML, hay que setearlo en el elemento.
+  const heroVideoRef = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    if (heroVideoRef.current) {
+      heroVideoRef.current.playbackRate = heroConfig?.playbackRate ?? 1;
+    }
+  }, [heroConfig?.playbackRate, heroConfig?.videoUrl]);
 
   // Handle Booking Submit
   const handleBookingSubmit = async (e: React.FormEvent) => {
@@ -165,7 +175,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     try {
       await onAddReview({
         authorName: revName.trim(),
-        authorLocation: revLocation.trim() || 'España',
+        authorLocation: revLocation.trim() || 'Venezuela',
         rating: revRating,
         date: new Date().toISOString().split('T')[0],
         projectType: revType,
@@ -204,18 +214,34 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     : workOrders.filter((wo) => activeTab === 'all' || wo.projectType === activeTab);
 
   const activeCompanyName = companyData?.companyName || 'REMODELACIONES FVJ';
-  const activeSlogan = companyData?.slogan || 'Empresa líder en remodelaciones integrales de baños y cocinas de lujo en España. Calidad, garantía y diseño 3D exclusivo.';
-  const activePhone = companyData?.phone || '+34 611 223 344';
-  const activeEmail = companyData?.email || 'info@remodelacionesfvj.es';
-  const activeAddress = companyData?.address ? `${companyData.address}, ${companyData.city || 'España'}` : 'Av. Diagonal 450, Barcelona';
-  const activeCif = companyData?.cif || 'B-987654321';
+  const activeSlogan = companyData?.slogan || 'Empresa líder en remodelaciones integrales de baños y cocinas de lujo en Venezuela. Calidad, garantía y diseño 3D exclusivo.';
+  const activePhone = companyData?.phone || '+58 412-9876543';
+  const activeEmail = companyData?.email || 'info@remodelacionesfvj.com';
+  const activeAddress = companyData?.address ? `${companyData.address}, ${companyData.city || 'Venezuela'}` : 'Av. Municipal, Lechería';
+  const activeCif = companyData?.cif || 'J-40123456-7';
   const activeCopyright = `${activeCompanyName}. Todos los derechos reservados.`;
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-slate-800 font-sans selection:bg-[#580812] selection:text-white pb-16">
       {/* TOP FOLD: 100VH CONTAINER FOR TOP BANNER + (COVER VIDEO or DESTACADO) */}
       <div className="min-h-screen flex flex-col bg-[#F3F1EC] text-slate-900 relative overflow-hidden border-b border-stone-300">
-        <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#580812_1px,transparent_1px)] [background-size:20px_20px] pointer-events-none z-0" />
+        {heroConfig?.showVideo && heroConfig?.videoUrl ? (
+          /* Vídeo a pantalla completa del hero — reemplaza el fondo de puntos. */
+          <>
+            <video
+              ref={heroVideoRef}
+              src={heroConfig.videoUrl}
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="absolute inset-0 w-full h-full object-cover z-0"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/10 z-0" />
+          </>
+        ) : (
+          <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#580812_1px,transparent_1px)] [background-size:20px_20px] pointer-events-none z-0" />
+        )}
 
         {/* 1. PUBLIC TOP HEADER (TOP BANNER) */}
         <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md text-slate-900 border-b border-stone-200 shadow-xs shrink-0">
@@ -263,48 +289,36 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         {/* 2. COVER VIDEO HERO OR PROYECTO DESTACADO (CENTRALIZED IN 100VH) */}
         <div className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8 relative z-10">
           {heroConfig?.showVideo && heroConfig?.videoUrl ? (
-            /* HERO COVER VIDEO PLAYER BANNER */
-            <section className="w-full max-w-5xl mx-auto relative rounded-3xl overflow-hidden shadow-2xl border border-stone-300 aspect-video md:aspect-21/9 bg-slate-950 flex flex-col justify-end p-6 sm:p-10">
-              <video
-                src={heroConfig.videoUrl}
-                autoPlay
-                loop
-                muted
-                playsInline
-                className="absolute inset-0 w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/20" />
+            /* HERO COVER VIDEO OVERLAY CONTENT — el vídeo ya es el fondo de toda la sección (ver arriba) */
+            <section className="w-full max-w-5xl mx-auto relative z-10 space-y-3 text-white px-2 sm:px-0">
+              <span className="px-3 py-1 rounded-full bg-[#580812] text-white font-black text-[10px] uppercase tracking-wider inline-flex items-center gap-1.5 shadow-md">
+                <Sparkles className="w-3.5 h-3.5 text-stone-200" />
+                <span>Vídeo de Portada Oficial</span>
+              </span>
 
-              <div className="relative z-10 space-y-3 text-white max-w-3xl">
-                <span className="px-3 py-1 rounded-full bg-[#580812] text-white font-black text-[10px] uppercase tracking-wider inline-flex items-center gap-1.5 shadow-md">
-                  <Sparkles className="w-3.5 h-3.5 text-stone-200" />
-                  <span>Vídeo de Portada Oficial</span>
-                </span>
+              <h2 className="text-2xl sm:text-4xl font-black text-white leading-tight tracking-tight">
+                {heroConfig.videoTitle || 'Diseño y Remodelación de Espacios Exclusivos'}
+              </h2>
 
-                <h2 className="text-2xl sm:text-4xl font-black text-white leading-tight tracking-tight">
-                  {heroConfig.videoTitle || 'Diseño y Remodelación de Espacios Exclusivos'}
-                </h2>
+              <p className="text-xs sm:text-sm text-stone-200 leading-relaxed font-medium line-clamp-2 sm:line-clamp-none max-w-3xl">
+                {heroConfig.videoSubtitle || 'Transformamos tu baño y cocina con acabados de lujo, microcemento y piedra natural.'}
+              </p>
 
-                <p className="text-xs sm:text-sm text-stone-200 leading-relaxed font-medium line-clamp-2 sm:line-clamp-none">
-                  {heroConfig.videoSubtitle || 'Transformamos tu baño y cocina con acabados de lujo, microcemento y piedra natural.'}
-                </p>
-
-                <div className="flex flex-wrap items-center gap-3 pt-2">
-                  <a
-                    href="#agendar"
-                    className="px-5 py-2.5 rounded-xl bg-[#580812] hover:bg-rose-900 text-white font-black text-xs shadow-xl transition-all flex items-center gap-2"
-                  >
-                    <Calendar className="w-4 h-4" />
-                    <span>Pedir Cita para Medición</span>
-                  </a>
-                  <a
-                    href="#proyectos"
-                    className="px-5 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs backdrop-blur-md transition-all flex items-center gap-2"
-                  >
-                    <span>Ver Proyectos</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </a>
-                </div>
+              <div className="flex flex-wrap items-center gap-3 pt-2">
+                <a
+                  href="#agendar"
+                  className="px-5 py-2.5 rounded-xl bg-[#580812] hover:bg-rose-900 text-white font-black text-xs shadow-xl transition-all flex items-center gap-2"
+                >
+                  <Calendar className="w-4 h-4" />
+                  <span>Pedir Cita para Medición</span>
+                </a>
+                <a
+                  href="#proyectos"
+                  className="px-5 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs backdrop-blur-md transition-all flex items-center gap-2"
+                >
+                  <span>Ver Proyectos</span>
+                  <ArrowRight className="w-4 h-4" />
+                </a>
               </div>
             </section>
           ) : (
@@ -429,7 +443,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <span>Galería de Trabajos Realizados</span>
             </span>
             <h2 className="text-2xl md:text-3xl font-black text-[#0A192F] mt-1">
-              Reformas Entregadas en Barcelona, Madrid y Valencia
+              Reformas Entregadas en Barcelona, Lechería y Puerto La Cruz
             </h2>
             <p className="text-xs md:text-sm text-slate-600 mt-1">
               Explora nuestros proyectos reales de baños de diseño, cocinas integradas y reformas integrales.
@@ -465,14 +479,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             const pTitle = project.title;
             const pImage = project.imageUrl || project.photos?.[0]?.url || 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=600&q=80';
             const pType = project.projectType || 'baño';
-            const pAddress = project.location || project.address || 'Barcelona / Madrid';
+            const pAddress = project.location || project.address || 'Barcelona / Lechería';
             const pDesc = project.description || project.notes || 'Reforma ejecutada con acabados de alta gama e instalaciones garantizadas.';
             const pDate = project.executionTime || project.startDate || 'Obra Entregada';
+            const pEstimatedPrice = project.estimatedPrice;
 
             return (
               <div
                 key={project.id}
-                onClick={() => setSelectedProject(project)}
+                onClick={() => {
+                  setSelectedProject(project);
+                  setActivePhotoIndex(0);
+                }}
                 className="bg-white rounded-2xl border border-stone-200 shadow-sm hover:shadow-xl transition-all overflow-hidden cursor-pointer group flex flex-col justify-between"
               >
                 <div>
@@ -509,6 +527,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       <MapPin className="w-3.5 h-3.5 text-stone-400 shrink-0" />
                       <span>{pAddress}</span>
                     </div>
+
+                    {pEstimatedPrice != null && (
+                      <div className="text-xs font-bold text-[#580812]">
+                        Precio Estimado: {pEstimatedPrice.toLocaleString('es-ES')} $
+                      </div>
+                    )}
 
                     <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
                       {pDesc}
@@ -583,7 +607,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <span className="text-[10px] uppercase font-bold text-stone-400 block">¿Prefieres llamar directamente?</span>
                 <div className="flex items-center gap-2 text-white font-black text-lg">
                   <Phone className="w-5 h-5 text-stone-300" />
-                  <span>+34 900 123 456</span>
+                  <span>+58 4147812549</span>
                 </div>
                 <span className="text-[11px] text-stone-400 block">Atención telefónica Lunes a Viernes de 08:30 a 19:30</span>
               </div>
@@ -615,7 +639,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       required
                       value={clientPhone}
                       onChange={(e) => setClientPhone(e.target.value)}
-                      placeholder="+34 612 345 678"
+                      placeholder="+58 414-1234567"
                       className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-[#580812]"
                     />
                   </div>
@@ -634,13 +658,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </div>
 
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Ciudad / Provincia *</label>
+                    <label className="block font-bold text-slate-700 mb-1">Ciudad / Estado *</label>
                     <input
                       type="text"
                       required
                       value={clientCity}
                       onChange={(e) => setClientCity(e.target.value)}
-                      placeholder="Ej. Barcelona"
+                      placeholder="Ej. Lechería"
                       className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-[#580812]"
                     />
                   </div>
@@ -652,7 +676,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     type="text"
                     value={clientAddress}
                     onChange={(e) => setClientAddress(e.target.value)}
-                    placeholder="Ej. Calle Muntaner 120, 3º 1ª"
+                    placeholder="Ej. Av. Fuerzas Armadas, Res. Costa Azul, Lechería"
                     className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-[#580812]"
                   />
                 </div>
@@ -990,7 +1014,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     type="text"
                     value={revLocation}
                     onChange={(e) => setRevLocation(e.target.value)}
-                    placeholder="Ej. Eixample, Barcelona"
+                    placeholder="Ej. El Morro, Lechería"
                     className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-[#580812]"
                   />
                 </div>
@@ -1109,32 +1133,66 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
 
             <div className="space-y-4 text-xs">
-              <div className="relative aspect-16/9 rounded-2xl overflow-hidden bg-stone-100">
-                <img
-                  src={
-                    selectedProject.photos?.[0]?.url ||
-                    'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=800&q=80'
-                  }
-                  alt={selectedProject.title}
-                  className="w-full h-full object-cover"
-                />
-              </div>
+              {(() => {
+                const galleryPhotos: string[] = [
+                  ...(selectedProject.imageUrl ? [selectedProject.imageUrl] : []),
+                  ...((selectedProject.photos || []).map((p: any) => p.url)),
+                ];
+                const fallbackPhoto = 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=800&q=80';
+                const photosToShow = galleryPhotos.length > 0 ? galleryPhotos : [fallbackPhoto];
+                const mainPhoto = photosToShow[Math.min(activePhotoIndex, photosToShow.length - 1)];
+                return (
+                  <>
+                    <div className="relative aspect-16/9 rounded-2xl overflow-hidden bg-stone-100">
+                      <img
+                        src={mainPhoto}
+                        alt={selectedProject.title}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    {photosToShow.length > 1 && (
+                      <div className="flex gap-2 overflow-x-auto pb-1">
+                        {photosToShow.map((url, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => setActivePhotoIndex(idx)}
+                            className={`shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${
+                              idx === activePhotoIndex ? 'border-[#580812]' : 'border-transparent opacity-70 hover:opacity-100'
+                            }`}
+                          >
+                            <img src={url} alt="" className="w-full h-full object-cover" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
 
               <div className="grid grid-cols-2 gap-3 p-3 bg-[#FAF8F5] rounded-xl border border-stone-200">
                 <div>
                   <span className="text-[10px] text-slate-500 font-bold block">Ubicación</span>
-                  <span className="font-bold text-slate-900">{selectedProject.address}</span>
+                  <span className="font-bold text-slate-900">{selectedProject.location || selectedProject.address}</span>
                 </div>
-                <div>
-                  <span className="text-[10px] text-slate-500 font-bold block">Cliente</span>
-                  <span className="font-bold text-slate-900">{selectedProject.clientName}</span>
-                </div>
+                {selectedProject.clientName && (
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-bold block">Cliente</span>
+                    <span className="font-bold text-slate-900">{selectedProject.clientName}</span>
+                  </div>
+                )}
+                {selectedProject.estimatedPrice != null && (
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-bold block">Precio Estimado</span>
+                    <span className="font-bold text-[#580812]">{selectedProject.estimatedPrice.toLocaleString('es-ES')} $</span>
+                  </div>
+                )}
               </div>
 
               <div>
                 <h4 className="font-bold text-slate-900 mb-1">Descripción de la Reforma</h4>
                 <p className="text-slate-600 leading-relaxed">
-                  {selectedProject.notes || 'Reforma completa con materiales de alta calidad, aislamiento e instalaciones según normativa vigente.'}
+                  {selectedProject.description || selectedProject.notes || 'Reforma completa con materiales de alta calidad, aislamiento e instalaciones según normativa vigente.'}
                 </p>
               </div>
 
@@ -1174,7 +1232,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
             {activeCif && (
               <div className="text-[10px] text-slate-500 font-mono">
-                CIF: {activeCif}
+                RIF: {activeCif}
               </div>
             )}
           </div>

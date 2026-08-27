@@ -1,5 +1,5 @@
 import { apiFetch } from './api';
-import { SocialPost, ProjectType, PublicReview, WebsiteProject } from '../types';
+import { SocialPost, ProjectType, PublicReview, WebsiteProject, WebsiteProjectPhoto } from '../types';
 
 interface SocialPostDTO {
   id: number;
@@ -151,6 +151,14 @@ export async function submitReview(input: NewReviewInput): Promise<void> {
   });
 }
 
+interface WebsiteProjectPhotoDTO {
+  id: number;
+  project: number;
+  image: string;
+  caption: string;
+  uploaded_at: string;
+}
+
 interface WebsiteProjectDTO {
   id: number;
   title: string;
@@ -160,10 +168,20 @@ interface WebsiteProjectDTO {
   kind: string;
   image: string | null;
   description: string;
+  estimated_price: string | null;
   is_featured: boolean;
   visible_on_website: boolean;
   task: number | null;
   created_at: string;
+  photos: WebsiteProjectPhotoDTO[];
+}
+
+function fromProjectPhotoDTO(dto: WebsiteProjectPhotoDTO): WebsiteProjectPhoto {
+  return {
+    id: String(dto.id),
+    url: dto.image,
+    caption: dto.caption,
+  };
 }
 
 function fromProjectDTO(dto: WebsiteProjectDTO): WebsiteProject {
@@ -176,10 +194,12 @@ function fromProjectDTO(dto: WebsiteProjectDTO): WebsiteProject {
     projectType: (dto.kind || 'integral') as ProjectType,
     imageUrl: dto.image || '',
     description: dto.description,
+    estimatedPrice: dto.estimated_price != null ? parseFloat(dto.estimated_price) : undefined,
     isFeatured: dto.is_featured,
     visibleOnWebsite: dto.visible_on_website,
     workOrderId: dto.task != null ? String(dto.task) : undefined,
     createdAt: dto.created_at,
+    photos: (dto.photos || []).map(fromProjectPhotoDTO),
   };
 }
 
@@ -203,6 +223,7 @@ export interface WebsiteProjectInput {
   projectType: ProjectType;
   image?: File;
   description: string;
+  estimatedPrice?: number | null;
   visibleOnWebsite: boolean;
   workOrderId?: string;
 }
@@ -216,6 +237,7 @@ export async function createWebsiteProject(input: WebsiteProjectInput): Promise<
   formData.append('kind', input.projectType);
   if (input.image) formData.append('image', input.image);
   formData.append('description', input.description);
+  if (input.estimatedPrice != null) formData.append('estimated_price', String(input.estimatedPrice));
   formData.append('visible_on_website', String(input.visibleOnWebsite));
   if (input.workOrderId) formData.append('task', input.workOrderId);
 
@@ -240,6 +262,9 @@ export async function updateWebsiteProject(
     if (input.projectType !== undefined) formData.append('kind', input.projectType);
     formData.append('image', input.image);
     if (input.description !== undefined) formData.append('description', input.description);
+    if (input.estimatedPrice !== undefined) {
+      formData.append('estimated_price', input.estimatedPrice != null ? String(input.estimatedPrice) : '');
+    }
     if (input.visibleOnWebsite !== undefined) formData.append('visible_on_website', String(input.visibleOnWebsite));
     if (input.workOrderId) formData.append('task', input.workOrderId);
     body = formData;
@@ -251,6 +276,7 @@ export async function updateWebsiteProject(
     if (input.executionTime !== undefined) body.execution_time = input.executionTime;
     if (input.projectType !== undefined) body.kind = input.projectType;
     if (input.description !== undefined) body.description = input.description;
+    if (input.estimatedPrice !== undefined) body.estimated_price = input.estimatedPrice;
     if (input.visibleOnWebsite !== undefined) body.visible_on_website = input.visibleOnWebsite;
     if (input.workOrderId !== undefined) body.task = input.workOrderId ? Number(input.workOrderId) : null;
   }
@@ -272,4 +298,26 @@ export async function setFeaturedWebsiteProject(id: string): Promise<WebsiteProj
     method: 'POST',
   });
   return fromProjectDTO(dto);
+}
+
+// Galería adicional del proyecto (más allá de la foto de portada).
+export async function addWebsiteProjectPhoto(
+  projectId: string,
+  file: File,
+  caption: string = ''
+): Promise<WebsiteProjectPhoto> {
+  const formData = new FormData();
+  formData.append('project', projectId);
+  formData.append('image', file);
+  formData.append('caption', caption);
+
+  const dto = await apiFetch<WebsiteProjectPhotoDTO>('/showcase/project-photos/', {
+    method: 'POST',
+    body: formData,
+  });
+  return fromProjectPhotoDTO(dto);
+}
+
+export async function deleteWebsiteProjectPhoto(photoId: string): Promise<void> {
+  await apiFetch(`/showcase/project-photos/${photoId}/`, { method: 'DELETE' });
 }

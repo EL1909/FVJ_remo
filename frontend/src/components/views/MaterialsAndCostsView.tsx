@@ -41,12 +41,12 @@ export const MaterialsAndCostsView: React.FC<MaterialsAndCostsViewProps> = ({
   // Form State
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [linkedSupplierId, setLinkedSupplierId] = useState('');
-  const [supplierName, setSupplierName] = useState('Porcelanosa Barcelona');
+  const [supplierName, setSupplierName] = useState('Cerámicas Oriente, Barcelona');
   const [supplierPhone, setSupplierPhone] = useState('');
   const [supplierEmail, setSupplierEmail] = useState('');
   const [selectedWorkOrderId, setSelectedWorkOrderId] = useState<string>(workOrders[0]?.id || '');
   const [category, setCategory] = useState<MaterialCategory>('azulejos_pavimentos');
-  const [itemName, setItemName] = useState('Azulejo Porcelanosa 120x60 Mármol Calacatta');
+  const [itemName, setItemName] = useState('Azulejo Vencerámica 120x60 Mármol Calacatta');
   const [quantity, setQuantity] = useState<number>(15);
   const [unitPrice, setUnitPrice] = useState<number>(38);
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
@@ -342,7 +342,7 @@ export const MaterialsAndCostsView: React.FC<MaterialsAndCostsViewProps> = ({
                     setSupplierName(e.target.value);
                     setLinkedSupplierId('');
                   }}
-                  placeholder="Ej. Porcelanosa, Roca, Silestone"
+                  placeholder="Ej. Vencerámica, Corona, Ferretotal"
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
                 />
               </div>

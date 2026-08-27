@@ -815,7 +815,7 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                     type="text"
                     value={newEmpPhone}
                     onChange={(e) => setNewEmpPhone(e.target.value)}
-                    placeholder="+34 600 112 233"
+                    placeholder="+58 416-1122334"
                     className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#580812]"
                   />
                 </div>

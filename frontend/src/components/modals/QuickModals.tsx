@@ -145,7 +145,7 @@ export const QuickEventModal: React.FC<QuickEventModalProps> = ({
                 type="text"
                 value={clientPhone}
                 onChange={(e) => setClientPhone(e.target.value)}
-                placeholder="+34 612 345 678"
+                placeholder="+58 414-1234567"
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
               />
             </div>
@@ -200,7 +200,7 @@ export const QuickEventModal: React.FC<QuickEventModalProps> = ({
               type="text"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              placeholder="Ej. Av. Diagonal 450, Barcelona"
+              placeholder="Ej. Av. 5 de Julio, Barcelona"
               className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
             />
           </div>
@@ -250,10 +250,10 @@ export const QuickClientModal: React.FC<QuickClientModalProps> = ({
   onSaveClient,
 }) => {
   const [name, setName] = useState('');
-  const [phone, setPhone] = useState('+34 ');
+  const [phone, setPhone] = useState('+58 ');
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
-  const [city, setCity] = useState('Madrid');
+  const [city, setCity] = useState('Barcelona');
   const [tagInput, setTagInput] = useState('Reforma Baño');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);

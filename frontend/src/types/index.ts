@@ -301,6 +301,13 @@ export interface WebsiteHeroConfig {
   showVideo: boolean;
   autoPlay?: boolean;
   muted?: boolean;
+  playbackRate?: number;
+}
+
+export interface WebsiteProjectPhoto {
+  id: string;
+  url: string;
+  caption?: string;
 }
 
 export interface WebsiteProject {
@@ -312,10 +319,12 @@ export interface WebsiteProject {
   projectType: ProjectType;
   imageUrl: string;
   description: string;
+  estimatedPrice?: number;
   isFeatured: boolean;
   visibleOnWebsite: boolean;
   workOrderId?: string;
   createdAt: string;
+  photos: WebsiteProjectPhoto[];
 }
 
 export interface CompanyData {

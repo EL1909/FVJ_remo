@@ -19,6 +19,7 @@ interface BusinessProfileDTO {
   hero_show_video: boolean;
   hero_autoplay: boolean;
   hero_muted: boolean;
+  hero_video_speed: string;
 }
 
 function companyDataFromDTO(dto: BusinessProfileDTO): CompanyData {
@@ -45,6 +46,7 @@ function heroConfigFromDTO(dto: BusinessProfileDTO): WebsiteHeroConfig {
     showVideo: dto.hero_show_video,
     autoPlay: dto.hero_autoplay,
     muted: dto.hero_muted,
+    playbackRate: parseFloat(dto.hero_video_speed) || 1,
   };
 }
 
@@ -108,17 +110,39 @@ export async function updateCompanyData(input: CompanyDataInput): Promise<Compan
   return companyDataFromDTO(dto);
 }
 
-export async function updateHeroConfig(config: WebsiteHeroConfig): Promise<WebsiteHeroConfig> {
+export interface WebsiteHeroConfigInput {
+  videoTitle: string;
+  videoSubtitle: string;
+  showVideo: boolean;
+  autoPlay?: boolean;
+  muted?: boolean;
+  playbackRate?: number;
+  videoFile?: File;
+  clearVideo?: boolean;
+}
+
+export async function updateHeroConfig(input: WebsiteHeroConfigInput): Promise<WebsiteHeroConfig> {
+  const fields: Record<string, string> = {
+    hero_video_title: input.videoTitle || '',
+    hero_video_subtitle: input.videoSubtitle || '',
+    hero_show_video: String(input.showVideo),
+    hero_autoplay: String(input.autoPlay ?? true),
+    hero_muted: String(input.muted ?? true),
+    hero_video_speed: String(input.playbackRate ?? 1),
+    clear_hero_video: String(input.clearVideo ?? false),
+  };
+
+  let body: any = fields;
+  if (input.videoFile) {
+    const formData = new FormData();
+    Object.entries(fields).forEach(([key, value]) => formData.append(key, value));
+    formData.append('hero_video_url', input.videoFile);
+    body = formData;
+  }
+
   const dto = await apiFetch<BusinessProfileDTO>('/business/profile/', {
     method: 'PATCH',
-    body: {
-      hero_video_url: config.videoUrl,
-      hero_video_title: config.videoTitle || '',
-      hero_video_subtitle: config.videoSubtitle || '',
-      hero_show_video: config.showVideo,
-      hero_autoplay: config.autoPlay ?? true,
-      hero_muted: config.muted ?? true,
-    },
+    body,
   });
   return heroConfigFromDTO(dto);
 }

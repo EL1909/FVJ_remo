@@ -708,7 +708,7 @@ export const EstimatesView: React.FC<EstimatesViewProps> = ({
                       type="text"
                       value={customerPhone}
                       onChange={(e) => setCustomerPhone(e.target.value)}
-                      placeholder="+34 612 345 678"
+                      placeholder="+58 414-1234567"
                       className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                     />
                   </div>
@@ -1008,7 +1008,7 @@ export const EstimatesView: React.FC<EstimatesViewProps> = ({
                 <div>
                   <h1 className="text-2xl font-black text-slate-900 tracking-tight">REMODELACIONES FVJ</h1>
                   <p className="text-xs text-slate-600 font-semibold uppercase">Especialistas en Remodelación de Baños & Cocinas</p>
-                  <p className="text-xs text-slate-500">CIF: B-987654321 • Tel: +34 912 345 678</p>
+                  <p className="text-xs text-slate-500">RIF: J-40123456-7 • Tel: +58 281-2345678</p>
                 </div>
                 <div className="text-right">
                   <span className="text-xl font-mono font-bold text-amber-600">{printEstimate.estimateNumber}</span>

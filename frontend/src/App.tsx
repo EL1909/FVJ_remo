@@ -95,6 +95,8 @@ import {
   updateWebsiteProject,
   deleteWebsiteProject,
   setFeaturedWebsiteProject,
+  addWebsiteProjectPhoto,
+  deleteWebsiteProjectPhoto,
   WebsiteProjectInput,
 } from './lib/showcase';
 
@@ -105,6 +107,7 @@ import {
   updateCompanyData,
   updateHeroConfig,
   CompanyDataInput,
+  WebsiteHeroConfigInput,
 } from './lib/business';
 
 import {
@@ -640,8 +643,8 @@ export default function App() {
   };
 
   // Website CMS Handlers
-  const handleUpdateHeroConfig = async (config: WebsiteHeroConfig) => {
-    const updated = await updateHeroConfig(config);
+  const handleUpdateHeroConfig = async (input: WebsiteHeroConfigInput) => {
+    const updated = await updateHeroConfig(input);
     setWebsiteHeroConfig(updated);
   };
 
@@ -664,6 +667,22 @@ export default function App() {
     await setFeaturedWebsiteProject(id);
     setWebsiteProjects((prev) =>
       prev.map((p) => ({ ...p, isFeatured: p.id === id }))
+    );
+  };
+
+  const handleAddProjectPhoto = async (projectId: string, file: File, caption: string) => {
+    const photo = await addWebsiteProjectPhoto(projectId, file, caption);
+    setWebsiteProjects((prev) =>
+      prev.map((p) => (p.id === projectId ? { ...p, photos: [...p.photos, photo] } : p))
+    );
+  };
+
+  const handleDeleteProjectPhoto = async (projectId: string, photoId: string) => {
+    await deleteWebsiteProjectPhoto(photoId);
+    setWebsiteProjects((prev) =>
+      prev.map((p) =>
+        p.id === projectId ? { ...p, photos: p.photos.filter((ph) => ph.id !== photoId) } : p
+      )
     );
   };
 
@@ -870,6 +889,8 @@ export default function App() {
               onUpdateProject={handleUpdateWebsiteProject}
               onDeleteProject={handleDeleteWebsiteProject}
               onSetFeaturedProject={handleSetFeaturedWebsiteProject}
+              onAddProjectPhoto={handleAddProjectPhoto}
+              onDeleteProjectPhoto={handleDeleteProjectPhoto}
               companyData={companyData}
               onUpdateCompanyData={handleUpdateCompanyData}
             />

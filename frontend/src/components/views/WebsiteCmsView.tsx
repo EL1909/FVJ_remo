@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Globe,
   Video,
@@ -29,18 +29,20 @@ import {
   WorkOrder,
 } from '../../types';
 import { WebsiteProjectInput } from '../../lib/showcase';
-import { CompanyDataInput } from '../../lib/business';
+import { CompanyDataInput, WebsiteHeroConfigInput } from '../../lib/business';
 import { ApiError } from '../../lib/api';
 
 interface WebsiteCmsViewProps {
   heroConfig: WebsiteHeroConfig;
-  onUpdateHeroConfig: (config: WebsiteHeroConfig) => Promise<void>;
+  onUpdateHeroConfig: (input: WebsiteHeroConfigInput) => Promise<void>;
   projects: WebsiteProject[];
   workOrders: WorkOrder[];
   onAddProject: (input: WebsiteProjectInput) => Promise<void>;
   onUpdateProject: (id: string, input: Partial<WebsiteProjectInput>) => Promise<void>;
   onDeleteProject: (id: string) => Promise<void>;
   onSetFeaturedProject: (id: string) => Promise<void>;
+  onAddProjectPhoto: (projectId: string, file: File, caption: string) => Promise<void>;
+  onDeleteProjectPhoto: (projectId: string, photoId: string) => Promise<void>;
   companyData: CompanyData;
   onUpdateCompanyData: (data: CompanyDataInput) => Promise<void>;
 }
@@ -54,6 +56,8 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
   onUpdateProject,
   onDeleteProject,
   onSetFeaturedProject,
+  onAddProjectPhoto,
+  onDeleteProjectPhoto,
   companyData,
   onUpdateCompanyData,
 }) => {
@@ -61,11 +65,20 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Video Form State
-  const [videoUrlInput, setVideoUrlInput] = useState(heroConfig.videoUrl || '');
+  const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoTitleInput, setVideoTitleInput] = useState(heroConfig.videoTitle || '');
   const [videoSubtitleInput, setVideoSubtitleInput] = useState(heroConfig.videoSubtitle || '');
   const [showVideoToggle, setShowVideoToggle] = useState(heroConfig.showVideo);
+  const [videoSpeedInput, setVideoSpeedInput] = useState(heroConfig.playbackRate ?? 1);
   const [isSavingVideo, setIsSavingVideo] = useState(false);
+  const previewVideoRef = useRef<HTMLVideoElement>(null);
+
+  // playbackRate no es un atributo HTML, hay que setearlo en el elemento.
+  useEffect(() => {
+    if (previewVideoRef.current) {
+      previewVideoRef.current.playbackRate = videoSpeedInput;
+    }
+  }, [videoSpeedInput, videoFile, heroConfig.videoUrl]);
   const [videoError, setVideoError] = useState('');
 
   // Project Modal / Editing State
@@ -79,11 +92,15 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
   const [projImageFile, setProjImageFile] = useState<File | null>(null);
   const [projImagePreview, setProjImagePreview] = useState('');
   const [projDescription, setProjDescription] = useState('');
+  const [projEstimatedPrice, setProjEstimatedPrice] = useState('');
   const [projIsFeatured, setProjIsFeatured] = useState(false);
   const [projVisible, setProjVisible] = useState(true);
   const [projWorkOrderId, setProjWorkOrderId] = useState('');
   const [isSavingProject, setIsSavingProject] = useState(false);
   const [projectError, setProjectError] = useState('');
+  const [galleryPhotoFile, setGalleryPhotoFile] = useState<File | null>(null);
+  const [isUploadingGalleryPhoto, setIsUploadingGalleryPhoto] = useState(false);
+  const [galleryError, setGalleryError] = useState('');
 
   // Company Form State
   const [companyForm, setCompanyForm] = useState<CompanyData>({ ...companyData });
@@ -102,13 +119,15 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
     setIsSavingVideo(true);
     try {
       await onUpdateHeroConfig({
-        videoUrl: videoUrlInput.trim(),
         videoTitle: videoTitleInput.trim(),
         videoSubtitle: videoSubtitleInput.trim(),
         showVideo: showVideoToggle,
         autoPlay: true,
         muted: true,
+        playbackRate: videoSpeedInput,
+        ...(videoFile ? { videoFile } : {}),
       });
+      setVideoFile(null);
       showToast('¡Configuración de vídeo de portada guardada correctamente!');
     } catch (err) {
       setVideoError(err instanceof ApiError ? err.message : 'No se pudo guardar el vídeo de portada.');
@@ -122,11 +141,12 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
     setIsSavingVideo(true);
     try {
       await onUpdateHeroConfig({
-        ...heroConfig,
-        videoUrl: '',
+        videoTitle: heroConfig.videoTitle || '',
+        videoSubtitle: heroConfig.videoSubtitle || '',
         showVideo: false,
+        clearVideo: true,
       });
-      setVideoUrlInput('');
+      setVideoFile(null);
       setShowVideoToggle(false);
       showToast('Vídeo eliminado. La web mostrará ahora el Proyecto Destacado.');
     } catch (err) {
@@ -147,10 +167,13 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
     setProjImageFile(null);
     setProjImagePreview('');
     setProjDescription('');
+    setProjEstimatedPrice('');
     setProjIsFeatured(false);
     setProjVisible(true);
     setProjWorkOrderId('');
     setProjectError('');
+    setGalleryPhotoFile(null);
+    setGalleryError('');
     setIsProjectModalOpen(true);
   };
 
@@ -164,10 +187,13 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
     setProjImageFile(null);
     setProjImagePreview(proj.imageUrl);
     setProjDescription(proj.description);
+    setProjEstimatedPrice(proj.estimatedPrice != null ? String(proj.estimatedPrice) : '');
     setProjIsFeatured(proj.isFeatured);
     setProjVisible(proj.visibleOnWebsite);
     setProjWorkOrderId(proj.workOrderId || '');
     setProjectError('');
+    setGalleryPhotoFile(null);
+    setGalleryError('');
     setIsProjectModalOpen(true);
   };
 
@@ -193,6 +219,7 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
         executionTime: projExecutionTime.trim(),
         projectType: projType,
         description: projDescription.trim(),
+        estimatedPrice: projEstimatedPrice.trim() ? Number(projEstimatedPrice) : null,
         visibleOnWebsite: projVisible,
         workOrderId: projWorkOrderId || undefined,
         ...(projImageFile ? { image: projImageFile } : {}),
@@ -229,6 +256,29 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
       showToast('Proyecto eliminado.');
     } catch (err) {
       console.error('No se pudo eliminar el proyecto.', err);
+    }
+  };
+
+  const handleAddGalleryPhoto = async () => {
+    if (!editingProjectId || !galleryPhotoFile) return;
+    setGalleryError('');
+    setIsUploadingGalleryPhoto(true);
+    try {
+      await onAddProjectPhoto(editingProjectId, galleryPhotoFile, '');
+      setGalleryPhotoFile(null);
+    } catch (err) {
+      setGalleryError(err instanceof ApiError ? err.message : 'No se pudo subir la foto.');
+    } finally {
+      setIsUploadingGalleryPhoto(false);
+    }
+  };
+
+  const handleDeleteGalleryPhoto = async (photoId: string) => {
+    if (!editingProjectId) return;
+    try {
+      await onDeleteProjectPhoto(editingProjectId, photoId);
+    } catch (err) {
+      console.error('No se pudo eliminar la foto de la galería.', err);
     }
   };
 
@@ -407,23 +457,29 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
               <div className="text-xs text-amber-900 leading-relaxed">
                 <p className="font-bold">Comportamiento del Fallback:</p>
                 <p className="mt-0.5">
-                  Si no se especifica ningún URL de vídeo o si desactivas la opción, la portada de la web mostrará automáticamente la tarjeta del <strong>"Proyecto Destacado"</strong> con su fotografía, especificaciones de obra y botón de cita previa.
+                  Si no hay ningún vídeo cargado o si desactivas la opción, la portada de la web mostrará automáticamente la tarjeta del <strong>"Proyecto Destacado"</strong> con su fotografía, especificaciones de obra y botón de cita previa.
                 </p>
               </div>
             </div>
 
-            {/* URL Input */}
+            {/* Video File Upload */}
             <div className="space-y-2">
               <label className="block text-xs font-bold text-slate-800">
-                URL del Vídeo (alojado externamente: CDN, YouTube, Vimeo...)
+                Archivo de Vídeo
               </label>
-              <input
-                type="url"
-                value={videoUrlInput}
-                onChange={(e) => setVideoUrlInput(e.target.value)}
-                placeholder="https://tuservidor.com/videos/hero_portada.mp4"
-                className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-[#580812] font-mono"
-              />
+              <label className="w-full flex items-center gap-2 px-3.5 py-2.5 bg-[#FAF8F5] border border-stone-300 rounded-xl text-xs text-slate-900 cursor-pointer hover:bg-stone-100">
+                <Upload className="w-3.5 h-3.5" />
+                <span>{videoFile ? videoFile.name : heroConfig.videoUrl ? 'Reemplazar vídeo actual' : 'Elegir archivo de vídeo (.mp4)'}</span>
+                <input
+                  type="file"
+                  accept="video/*"
+                  onChange={(e) => setVideoFile(e.target.files?.[0] || null)}
+                  className="hidden"
+                />
+              </label>
+              <p className="text-[10px] text-slate-500">
+                Al guardar un vídeo nuevo, el anterior se elimina del servidor automáticamente.
+              </p>
             </div>
 
             {/* Title / Subtitle Overlays */}
@@ -452,6 +508,23 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
                   className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#580812]"
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-800 mb-1">
+                Velocidad de Reproducción
+              </label>
+              <select
+                value={videoSpeedInput}
+                onChange={(e) => setVideoSpeedInput(Number(e.target.value))}
+                className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#580812]"
+              >
+                <option value={0.5}>0.5x — Muy lento (cinematográfico)</option>
+                <option value={0.75}>0.75x — Lento</option>
+                <option value={1}>1x — Normal</option>
+                <option value={1.25}>1.25x — Rápido</option>
+                <option value={1.5}>1.5x — Muy rápido</option>
+              </select>
             </div>
 
             {videoError && (
@@ -494,10 +567,11 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
             </h3>
 
             <div className="relative rounded-2xl overflow-hidden aspect-video bg-[#0A192F] shadow-inner border border-stone-200">
-              {showVideoToggle && videoUrlInput ? (
+              {showVideoToggle && (videoFile || heroConfig.videoUrl) ? (
                 <>
                   <video
-                    src={videoUrlInput}
+                    ref={previewVideoRef}
+                    src={videoFile ? URL.createObjectURL(videoFile) : heroConfig.videoUrl}
                     autoPlay
                     loop
                     muted
@@ -544,13 +618,13 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
               <div className="flex items-center justify-between text-[11px]">
                 <span>Modo Portada:</span>
                 <span className="font-bold text-slate-900">
-                  {showVideoToggle && videoUrlInput ? 'Vídeo HTML5 Player' : 'Tarjeta Proyecto Destacado'}
+                  {showVideoToggle && (videoFile || heroConfig.videoUrl) ? 'Vídeo HTML5 Player' : 'Tarjeta Proyecto Destacado'}
                 </span>
               </div>
               <div className="flex items-center justify-between text-[11px]">
                 <span>Origen Vídeo:</span>
                 <span className="font-mono text-slate-700 truncate max-w-[200px]">
-                  {videoUrlInput || 'Ninguno (Modo Fallback)'}
+                  {videoFile ? videoFile.name : heroConfig.videoUrl || 'Ninguno (Modo Fallback)'}
                 </span>
               </div>
             </div>
@@ -611,6 +685,11 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
                       <span className="px-2.5 py-1 bg-amber-500 text-slate-950 text-[10px] font-black uppercase rounded-lg flex items-center gap-1 shadow">
                         <Star className="w-3 h-3 fill-slate-950" />
                         <span>Destacado (Portada)</span>
+                      </span>
+                    )}
+                    {proj.estimatedPrice != null && (
+                      <span className="px-2.5 py-1 bg-white/90 text-slate-900 text-[10px] font-black rounded-lg shadow">
+                        Precio Estimado: {proj.estimatedPrice.toLocaleString('es-ES')} $
                       </span>
                     )}
                   </div>
@@ -731,7 +810,7 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">CIF / NIF Fiscal</label>
+                <label className="block text-xs font-bold text-slate-800 mb-1">RIF</label>
                 <input
                   type="text"
                   required
@@ -891,7 +970,7 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
                 </div>
 
                 <div className="pt-3 border-t border-white/10 text-[10px] text-slate-400 flex justify-between items-center">
-                  <span>CIF: {companyForm.cif}</span>
+                  <span>RIF: {companyForm.cif}</span>
                   <span>{companyForm.socialInstagram}</span>
                 </div>
 
@@ -955,7 +1034,7 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
                     type="text"
                     value={projLocation}
                     onChange={(e) => setProjLocation(e.target.value)}
-                    placeholder="Ej: Calle Velázquez, Madrid"
+                    placeholder="Ej: Av. 5 de Julio, Barcelona"
                     className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#580812]"
                   />
                 </div>
@@ -983,6 +1062,22 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
                     className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#580812]"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">Precio Estimado (opcional)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={projEstimatedPrice}
+                  onChange={(e) => setProjEstimatedPrice(e.target.value)}
+                  placeholder="Ej: 3500"
+                  className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#580812]"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Referencia para mostrar en la galería pública — independiente del presupuesto real de la obra en el sistema. Déjalo vacío para no mostrar precio.
+                </p>
               </div>
 
               <div>
@@ -1025,6 +1120,62 @@ export const WebsiteCmsView: React.FC<WebsiteCmsViewProps> = ({
                     />
                   </label>
                 </div>
+                <p className="text-[10px] text-slate-500">Esta es la foto de portada, la que se ve en la tarjeta del listado.</p>
+              </div>
+
+              {/* Additional Gallery Photos — only once the project exists (needs an id to attach photos to) */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-800">
+                  Galería de Fotos Adicionales
+                </label>
+                {!editingProjectId ? (
+                  <p className="text-[11px] text-slate-500 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2">
+                    Guarda el proyecto primero; luego podrás volver a editarlo para añadir más fotos aquí.
+                  </p>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap gap-2">
+                      {(projects.find((p) => p.id === editingProjectId)?.photos || []).map((photo) => (
+                        <div key={photo.id} className="relative w-16 h-16 rounded-lg overflow-hidden border border-stone-300 group">
+                          <img src={photo.url} alt={photo.caption || 'Foto del proyecto'} className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteGalleryPhoto(photo.id)}
+                            className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer"
+                            title="Eliminar foto"
+                          >
+                            <Trash2 className="w-4 h-4 text-white" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="px-3 py-2 bg-stone-100 hover:bg-stone-200 text-slate-800 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>{galleryPhotoFile ? galleryPhotoFile.name : 'Elegir Foto'}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => setGalleryPhotoFile(e.target.files?.[0] || null)}
+                          className="hidden"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleAddGalleryPhoto}
+                        disabled={!galleryPhotoFile || isUploadingGalleryPhoto}
+                        className="px-3 py-2 bg-[#0A192F] hover:bg-slate-800 text-white rounded-xl text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        {isUploadingGalleryPhoto ? 'Subiendo...' : 'Añadir a la Galería'}
+                      </button>
+                    </div>
+                    {galleryError && (
+                      <p className="text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                        {galleryError}
+                      </p>
+                    )}
+                  </>
+                )}
               </div>
 
               <div>
