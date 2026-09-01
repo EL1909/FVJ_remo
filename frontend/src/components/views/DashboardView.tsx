@@ -15,6 +15,9 @@ import {
   Eye,
   Sparkles,
   UploadCloud,
+  Download,
+  Share as ShareIcon,
+  X,
 } from 'lucide-react';
 import {
   Estimate,
@@ -27,6 +30,20 @@ import {
 import { Profile } from '../../lib/api';
 import { SyncModal } from '../modals/SyncModal';
 
+// Safari/iOS nunca dispara beforeinstallprompt (no tiene esa API) — ahí se
+// detecta la plataforma y se muestran instrucciones manuales en vez de
+// intentar instalar programáticamente.
+function isIOSDevice(): boolean {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+}
+
+function isAlreadyInstalled(): boolean {
+  return (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (window.navigator as any).standalone === true
+  );
+}
+
 interface DashboardViewProps {
   estimates: Estimate[];
   workOrders: WorkOrder[];
@@ -38,6 +55,8 @@ interface DashboardViewProps {
   onOpenNewEstimate: () => void;
   onOpenNewEvent: () => void;
   currentUser?: Profile | null;
+  installPrompt?: BeforeInstallPromptEvent | null;
+  onInstallApp?: () => Promise<void>;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -50,6 +69,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenNewEstimate,
   onOpenNewEvent,
   currentUser,
+  installPrompt,
+  onInstallApp,
 }) => {
   const userFullName =
     [currentUser?.first_name, currentUser?.last_name].filter(Boolean).join(' ').trim() ||
@@ -57,6 +78,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     '';
 
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const [isIOSInstructionsOpen, setIsIOSInstructionsOpen] = useState(false);
+  const showInstallButton = !isAlreadyInstalled() && (!!installPrompt || isIOSDevice());
 
   // Calculations
   const pendingEstimates = estimates.filter((e) => e.status === 'enviado' || e.status === 'borrador');
@@ -112,9 +135,54 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <UploadCloud className="w-4 h-4 text-amber-300" />
               <span>Publicar a EsfuerzoVZ</span>
             </button>
+            {showInstallButton && (
+              <button
+                onClick={() => (installPrompt ? onInstallApp?.() : setIsIOSInstructionsOpen(true))}
+                className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-stone-100 text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer"
+                title="Instalar acceso directo a FVJ en este dispositivo"
+              >
+                <Download className="w-4 h-4 text-emerald-300" />
+                <span>Instalar App</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Instrucciones manuales de instalación en iPhone/iPad — Safari no
+          tiene beforeinstallprompt, no hay forma de disparar el instalar
+          desde código. */}
+      {isIOSInstructionsOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+              <h3 className="font-black text-base text-[#0A192F]">Instalar en iPhone / iPad</h3>
+              <button
+                onClick={() => setIsIOSInstructionsOpen(false)}
+                className="p-1 text-stone-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <ol className="space-y-3 text-xs text-slate-700 list-decimal list-inside">
+              <li>
+                Tocá el botón <ShareIcon className="w-3.5 h-3.5 inline-block text-[#580812] mx-0.5" /> "Compartir" en Safari (abajo o arriba de la pantalla).
+              </li>
+              <li>Elegí "Agregar a pantalla de inicio".</li>
+              <li>Confirmá el nombre y tocá "Agregar".</li>
+            </ol>
+            <p className="text-[11px] text-slate-500">
+              Solo funciona desde Safari — otros navegadores en iOS no pueden agregar el acceso directo.
+            </p>
+            <button
+              onClick={() => setIsIOSInstructionsOpen(false)}
+              className="w-full px-4 py-2 rounded-xl bg-[#580812] hover:bg-[#42050D] text-white font-bold text-xs cursor-pointer"
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Primary KPI Cards - Clear White Cards on White-Bone Canvas */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

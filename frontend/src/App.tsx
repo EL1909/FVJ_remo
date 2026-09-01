@@ -184,6 +184,28 @@ export default function App() {
     }
   }, []);
 
+  // "Instalar App" (Panel General): Chrome/Edge/Android avisan con este
+  // evento cuando la PWA es instalable — puede disparar en cualquier
+  // momento, no solo al entrar al Dashboard, por eso se captura acá arriba.
+  // Safari/iOS nunca lo dispara (no tiene esta API); ahí el botón muestra
+  // instrucciones manuales en vez de intentar instalar.
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+
+  useEffect(() => {
+    const onBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e as BeforeInstallPromptEvent);
+    };
+    window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (!installPrompt) return;
+    await installPrompt.prompt();
+    setInstallPrompt(null);
+  };
+
   const handleNotificationClick = (notification: AppNotification) => {
     const view = notification.data?.view;
     if (view === 'calendar' && notification.data?.appointment_id != null) {
@@ -790,6 +812,8 @@ export default function App() {
               onOpenNewEstimate={() => setCurrentView('estimates')}
               onOpenNewEvent={() => setIsQuickEventOpen(true)}
               currentUser={currentUser}
+              installPrompt={installPrompt}
+              onInstallApp={handleInstallApp}
             />
           )}
 
