@@ -293,7 +293,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <section className="w-full max-w-5xl mx-auto relative z-10 space-y-3 text-white px-2 sm:px-0">
               <span className="px-3 py-1 rounded-full bg-[#580812] text-white font-black text-[10px] uppercase tracking-wider inline-flex items-center gap-1.5 shadow-md">
                 <Sparkles className="w-3.5 h-3.5 text-stone-200" />
-                <span>Vídeo de Portada Oficial</span>
+                <span>Última Obra Terminada:</span>
               </span>
 
               <h2 className="text-2xl sm:text-4xl font-black text-white leading-tight tracking-tight">
@@ -1282,6 +1282,27 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               )}
               <span>{isAuthenticated ? 'Menú de Apps' : 'Entrar al Portal ERP / Admin'}</span>
             </button>
+          </div>
+        </div>
+
+        <div className="border-t border-slate-800">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-slate-500">
+            <a
+              href="#capacidades"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-stone-300 transition-colors cursor-pointer font-semibold"
+            >
+              Capacidades de este website
+            </a>
+            <a
+              href="https://esfuerzovz.com"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-stone-300 transition-colors cursor-pointer"
+            >
+              Desarrollado por EsfuerzoVZ
+            </a>
           </div>
         </div>
       </footer>

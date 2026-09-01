@@ -4,13 +4,14 @@ from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth.forms import PasswordResetForm, SetPasswordForm
+from django.contrib.auth.forms import SetPasswordForm
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
 from django.views.generic import RedirectView
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from evz_core.mail_relay import send_relay_email
 from .serializers import UserProfileSerializer
 
 User = get_user_model()
@@ -61,7 +62,11 @@ class ProfileView(generics.RetrieveUpdateAPIView):
 
 
 class PasswordResetRequestView(APIView):
-    """POST { email } → envía email con link de recuperación."""
+    """
+    POST { email } → envía email con link de recuperación, a través del
+    relay de EsfuerzoVZ (evz_core.mail_relay) — este deploy no maneja sus
+    propias credenciales SMTP.
+    """
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
@@ -78,16 +83,21 @@ class PasswordResetRequestView(APIView):
         token = default_token_generator.make_token(user)
         reset_url = f"{settings.FRONTEND_URL}/reset-password?uid={uid}&token={token}"
 
-        form = PasswordResetForm({'email': email})
-        if form.is_valid():
-            form.save(
-                request=request,
-                use_https=request.is_secure(),
-                subject_template_name='account/email/password_reset_subject.txt',
-                email_template_name='account/email/password_reset_message.txt',
-                html_email_template_name='account/email/password_reset_message.html',
-                extra_email_context={'password_reset_url': reset_url, 'user': user},
-            )
+        nombre = user.first_name or user.email
+        send_relay_email(
+            to=email,
+            subject='Recuperación de contraseña',
+            headline='Recuperación de contraseña',
+            body_text=(
+                f"Hola {nombre},\n\n"
+                "Se solicitó restablecer la contraseña de tu cuenta. "
+                "Si no fuiste vos, podés ignorar este mensaje.\n\n"
+                "El enlace para establecer una nueva contraseña expira en 15 minutos."
+            ),
+            button_text='Restablecer contraseña',
+            button_url=reset_url,
+            email_type='password_reset',
+        )
 
         return Response({'detail': 'Si el email está registrado recibirás un mensaje.'})
 

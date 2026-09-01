@@ -34,7 +34,7 @@ import {
   ExpenseCategory,
 } from '../../types';
 import { NewEmployeeInput, UpdateEmployeeInput, NewExpenseInput } from '../../lib/personal';
-import { ApiError } from '../../lib/api';
+import { ApiError, requestPasswordReset } from '../../lib/api';
 import { NotesThread } from '../shared/NotesThread';
 
 interface EmployeesViewProps {
@@ -169,6 +169,28 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
 
   const [employeeFormError, setEmployeeFormError] = useState<string | null>(null);
   const [isSavingEmployee, setIsSavingEmployee] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [resetPasswordMessage, setResetPasswordMessage] = useState<string | null>(null);
+  const [resetPasswordError, setResetPasswordError] = useState<string | null>(null);
+
+  const editingEmployee = editingEmployeeId
+    ? employees.find((e) => e.id === editingEmployeeId)
+    : null;
+
+  const handleResetPassword = async () => {
+    if (!editingEmployee?.email) return;
+    setResetPasswordError(null);
+    setResetPasswordMessage(null);
+    setIsResettingPassword(true);
+    try {
+      await requestPasswordReset(editingEmployee.email);
+      setResetPasswordMessage(`Se envió un correo a ${editingEmployee.email} para restablecer la contraseña.`);
+    } catch (err) {
+      setResetPasswordError(err instanceof ApiError ? err.message : 'No se pudo enviar el correo.');
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
 
   const handleCreateEmployeeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -214,6 +236,8 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
     setNewEmpPhotoFile(null);
     setNewEmpPhotoPreview(emp.avatar || null);
     setEmployeeFormError(null);
+    setResetPasswordMessage(null);
+    setResetPasswordError(null);
     setIsAddEmployeeOpen(true);
   };
 
@@ -821,9 +845,31 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                 </div>
               </div>
 
-              <p className="text-[11px] text-slate-500">
-                El acceso al panel (email/contraseña) se activa después, por separado.
-              </p>
+              {editingEmployee?.hasAccount ? (
+                <div className="bg-[#FAF8F5] border border-stone-200 rounded-xl p-3 space-y-2">
+                  <p className="text-[11px] text-slate-600">
+                    Tiene acceso al panel con <strong>{editingEmployee.email}</strong>.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleResetPassword}
+                    disabled={isResettingPassword}
+                    className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    {isResettingPassword ? 'Enviando...' : 'Restablecer Contraseña'}
+                  </button>
+                  {resetPasswordMessage && (
+                    <p className="text-[11px] font-bold text-emerald-700">{resetPasswordMessage}</p>
+                  )}
+                  {resetPasswordError && (
+                    <p className="text-[11px] font-bold text-red-600">{resetPasswordError}</p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-500">
+                  El acceso al panel (email/contraseña) se activa después, por separado.
+                </p>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>

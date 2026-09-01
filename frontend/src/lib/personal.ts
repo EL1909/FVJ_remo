@@ -115,6 +115,7 @@ function fromTeamMemberDTO(dto: TeamMemberDTO): Employee {
     startDate: dto.hired_at || '',
     bio: dto.bio || undefined,
     notes: (dto.notes || []).map(fromNoteDTO),
+    hasAccount: dto.has_account,
   };
 }
 

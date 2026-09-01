@@ -158,7 +158,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'es'
 
 # Zona horaria del NEGOCIO, no del servidor ni del visitante. Las visitas y
 # obras son presenciales: la hora que importa es la del local. Se guarda todo

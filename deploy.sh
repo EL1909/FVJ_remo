@@ -39,7 +39,7 @@ fi
 echo "==> Backend: dependencias"
 cd "$APP_DIR/backend"
 source "$VENV/bin/activate"
-pip install -r requirements.txt
+pip install --upgrade -r requirements.txt
 
 if [ ! -f ".env" ]; then
   echo "ERROR: falta $APP_DIR/backend/.env — crealo antes de seguir (ver deploy/env.example)." >&2

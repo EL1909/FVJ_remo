@@ -126,3 +126,18 @@ export async function fetchProfile(): Promise<Profile> {
 export function logout() {
   clearTokens();
 }
+
+// Reutiliza el flujo de auto-servicio ya existente (envía un email con link
+// de recuperación) — el panel lo dispara en nombre del empleado en vez de
+// pedirle a él que lo haga desde el login.
+export async function requestPasswordReset(email: string): Promise<void> {
+  const res = await fetch(`${API_URL}/accounts/password-reset/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new ApiError(data.error || data.detail || 'No se pudo enviar el correo de restablecimiento.', res.status);
+  }
+}

@@ -15,6 +15,7 @@ import { SocialGalleryView } from './components/views/SocialGalleryView';
 import { EmployeesView } from './components/views/EmployeesView';
 import { LandingPage } from './components/views/LandingPage';
 import { WebsiteCmsView } from './components/views/WebsiteCmsView';
+import { CapabilitiesPresentation } from './components/views/CapabilitiesPresentation';
 
 // Modals
 import { QuickEventModal, QuickClientModal } from './components/modals/QuickModals';
@@ -151,6 +152,17 @@ const emptyCompanyData: CompanyData = {
 };
 
 export default function App() {
+  // Página de capacidades: enlace del footer público, abre en pestaña nueva
+  // vía #capacidades — no usa react-router, así que se resuelve a mano.
+  const [showCapabilities, setShowCapabilities] = useState(
+    () => window.location.hash === '#capacidades'
+  );
+  useEffect(() => {
+    const onHashChange = () => setShowCapabilities(window.location.hash === '#capacidades');
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+
   const [viewMode, setViewMode] = useState<'public' | 'admin'>('public');
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
   const [searchTerm, setSearchTerm] = useState('');
@@ -690,6 +702,10 @@ export default function App() {
     const updated = await updateCompanyData(data);
     setCompanyData(updated);
   };
+
+  if (showCapabilities) {
+    return <CapabilitiesPresentation companyData={publicCompanyData} />;
+  }
 
   if (viewMode === 'public') {
     return (
