@@ -222,9 +222,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const activeCopyright = `${activeCompanyName}. Todos los derechos reservados.`;
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-slate-800 font-sans selection:bg-[#580812] selection:text-white pb-16">
+    <div className="min-h-screen bg-[#FAF8F5] text-slate-800 font-sans selection:bg-[#580812] selection:text-white">
       {/* TOP FOLD: 100VH CONTAINER FOR TOP BANNER + (COVER VIDEO or DESTACADO) */}
-      <div className="min-h-screen flex flex-col bg-[#F3F1EC] text-slate-900 relative overflow-hidden border-b border-stone-300">
+      <div className="min-h-dvh flex flex-col bg-[#F3F1EC] text-slate-900 relative overflow-hidden border-b border-stone-300">
         {heroConfig?.showVideo && heroConfig?.videoUrl ? (
           /* Vídeo a pantalla completa del hero — reemplaza el fondo de puntos. */
           <>
