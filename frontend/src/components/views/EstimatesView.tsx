@@ -20,7 +20,7 @@ import {
   MessageSquare,
   Send,
 } from 'lucide-react';
-import { Estimate, EstimateItem, Client, ProjectType } from '../../types';
+import { Estimate, EstimateItem, EstimateItemTemplate, Client, ProjectType } from '../../types';
 import { NewEstimateInput } from '../../lib/billing';
 import { ApiError } from '../../lib/api';
 import { NotesThread } from '../shared/NotesThread';
@@ -40,6 +40,7 @@ export interface EstimatePrefill {
 interface EstimatesViewProps {
   estimates: Estimate[];
   clients: Client[];
+  itemTemplates: EstimateItemTemplate[];
   onSaveEstimate: (estimate: NewEstimateInput) => Promise<void>;
   onUpdateEstimate: (id: string, estimate: NewEstimateInput) => Promise<void>;
   onUpdateEstimateStatus: (id: string, status: Estimate['status']) => Promise<void>;
@@ -54,80 +55,10 @@ interface EstimatesViewProps {
   onFocusEstimateConsumed?: () => void;
 }
 
-// Preset template items to quickly populate bathroom & kitchen quotes
-const ITEM_PRESETS: { category: string; description: string; unit: 'm²' | 'm.l.' | 'ud' | 'global' | 'horas'; unitCost: number; unitPrice: number; projectType: ProjectType }[] = [
-  // Baño presets
-  {
-    category: 'Demolición y Desescombro',
-    description: 'Retirada de bañera/ducha antigua, picado de alicatado existente y transporte a vertedero.',
-    unit: 'global',
-    unitCost: 550,
-    unitPrice: 820,
-    projectType: 'baño',
-  },
-  {
-    category: 'Plato de Ducha y Mampara',
-    description: 'Plato de ducha resina extraplano textura pizarra con tratamiento antideslizante C3 + Mampara vidrio templado 8mm.',
-    unit: 'ud',
-    unitCost: 650,
-    unitPrice: 980,
-    projectType: 'baño',
-  },
-  {
-    category: 'Alicatado Porcelánico',
-    description: 'Suministro y colocación de azulejo porcelánico 120x60 cm rectificado con cemento cola flexible C2TE.',
-    unit: 'm²',
-    unitCost: 32,
-    unitPrice: 52,
-    projectType: 'baño',
-  },
-  {
-    category: 'Grifería y Sanitario Empotrado',
-    description: 'Conjunto termostático empotrado negro mate / oro cepillado e inodoro suspendido con cisterna oculta.',
-    unit: 'ud',
-    unitCost: 720,
-    unitPrice: 1100,
-    projectType: 'baño',
-  },
-
-  // Cocina presets
-  {
-    category: 'Demolición y Tabiquería',
-    description: 'Apertura de hueco para cocina americana, demolición de tabique no portante y remates en yeso.',
-    unit: 'global',
-    unitCost: 850,
-    unitPrice: 1250,
-    projectType: 'cocina',
-  },
-  {
-    category: 'Mobiliario de Cocina',
-    description: 'Muebles de cocina a medida laminado antihuellas gola integrada, bisagras con freno amortiguado Blum.',
-    unit: 'm.l.',
-    unitCost: 620,
-    unitPrice: 890,
-    projectType: 'cocina',
-  },
-  {
-    category: 'Encimera Porcelánica / Cuarzo',
-    description: 'Encimera tipo Calacatta Oro 20mm con faldón, escurridor tallado en piedra y encastre bajo encimera.',
-    unit: 'm.l.',
-    unitCost: 380,
-    unitPrice: 560,
-    projectType: 'cocina',
-  },
-  {
-    category: 'Fontanería y Fregadero',
-    description: 'Red multicapa completa para fregadero y lavavajillas + Fregadero bajo encimera y grifo monomando extraíble.',
-    unit: 'global',
-    unitCost: 580,
-    unitPrice: 890,
-    projectType: 'cocina',
-  },
-];
-
 export const EstimatesView: React.FC<EstimatesViewProps> = ({
   estimates,
   clients,
+  itemTemplates,
   onSaveEstimate,
   onUpdateEstimate,
   onUpdateEstimateStatus,
@@ -186,7 +117,7 @@ export const EstimatesView: React.FC<EstimatesViewProps> = ({
   const total = subtotal + taxAmount;
   const estimatedMargin = subtotal > 0 ? ((subtotal - estimatedCost) / subtotal) * 100 : 0;
 
-  const handleAddItem = (preset?: typeof ITEM_PRESETS[0]) => {
+  const handleAddItem = (preset?: EstimateItemTemplate) => {
     const newItem: EstimateItem = preset
       ? {
           id: `item-${Date.now()}-${Math.random()}`,
@@ -770,10 +701,11 @@ export const EstimatesView: React.FC<EstimatesViewProps> = ({
                   Añadir Partidas Predefinidas Recomendadas:
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {ITEM_PRESETS.filter((p) => p.projectType === projectType || projectType === 'integral').map(
-                    (preset, idx) => (
+                  {itemTemplates
+                    .filter((p) => p.isActive && (p.projectType === projectType || projectType === 'integral'))
+                    .map((preset) => (
                       <button
-                        key={idx}
+                        key={preset.id}
                         type="button"
                         onClick={() => handleAddItem(preset)}
                         className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors flex items-center gap-1 cursor-pointer"
@@ -781,8 +713,7 @@ export const EstimatesView: React.FC<EstimatesViewProps> = ({
                         <Plus className="w-3 h-3" />
                         <span>{preset.category}</span>
                       </button>
-                    )
-                  )}
+                    ))}
                 </div>
               </div>
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   TrendingUp,
+  TrendingDown,
   FileText,
   HardHat,
   Receipt,
@@ -84,9 +85,35 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // Calculations
   const pendingEstimates = estimates.filter((e) => e.status === 'enviado' || e.status === 'borrador');
   const activeWorkOrders = workOrders.filter((w) => w.status === 'en_progreso');
-  const totalBilledMonth = invoices
-    .filter((i) => i.status === 'pagada')
+  const activeBathCount = activeWorkOrders.filter((w) => w.projectType === 'baño').length;
+  const activeKitchenCount = activeWorkOrders.filter((w) => w.projectType === 'cocina').length;
+
+  // Sin fecha de "cobrado" propia en Invoice, se usa issueDate como proxy
+  // para ubicar cada factura pagada en su mes — es el único campo de fecha
+  // disponible en el modelo.
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+  const prevMonthDate = new Date(currentYear, currentMonth - 1, 1);
+  const prevMonth = prevMonthDate.getMonth();
+  const prevYear = prevMonthDate.getFullYear();
+
+  const paidInvoices = invoices.filter((i) => i.status === 'pagada');
+  const totalBilledMonth = paidInvoices
+    .filter((i) => {
+      const d = new Date(i.issueDate);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    })
     .reduce((sum, i) => sum + i.total, 0);
+  const totalBilledPrevMonth = paidInvoices
+    .filter((i) => {
+      const d = new Date(i.issueDate);
+      return d.getMonth() === prevMonth && d.getFullYear() === prevYear;
+    })
+    .reduce((sum, i) => sum + i.total, 0);
+  const billedMonthChangePct = totalBilledPrevMonth > 0
+    ? Math.round(((totalBilledMonth - totalBilledPrevMonth) / totalBilledPrevMonth) * 100)
+    : 0;
 
   const totalTikTokViews = socialPosts.reduce((sum, p) => sum + p.views, 0);
   const totalLeadsSocial = socialPosts.reduce((sum, p) => sum + p.leadsGenerated, 0);
@@ -154,7 +181,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           desde código. */}
       {isIOSInstructionsOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-stone-100 pb-3">
               <h3 className="font-black text-base text-[#0A192F]">Instalar en iPhone / iPad</h3>
               <button
@@ -198,9 +225,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="text-2xl font-black text-[#0A192F]">
               {totalBilledMonth.toLocaleString('es-ES', { minimumFractionDigits: 2 })} $
             </div>
-            <div className="flex items-center gap-1.5 mt-1 text-xs font-semibold text-emerald-700">
-              <TrendingUp className="w-3.5 h-3.5" />
-              <span>+18% vs mes anterior</span>
+            <div className={`flex items-center gap-1.5 mt-1 text-xs font-semibold ${
+              billedMonthChangePct < 0 ? 'text-rose-700' : 'text-emerald-700'
+            }`}>
+              {billedMonthChangePct < 0 ? (
+                <TrendingDown className="w-3.5 h-3.5" />
+              ) : (
+                <TrendingUp className="w-3.5 h-3.5" />
+              )}
+              <span>{billedMonthChangePct >= 0 ? '+' : ''}{billedMonthChangePct}% vs mes anterior</span>
             </div>
           </div>
         </div>
@@ -222,11 +255,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <div className="flex items-center gap-2 mt-1 text-xs text-slate-600 font-medium">
               <span className="flex items-center gap-1 text-[#580812] font-bold">
-                <Bath className="w-3.5 h-3.5" /> 1 Baño
+                <Bath className="w-3.5 h-3.5" /> {activeBathCount} {activeBathCount === 1 ? 'Baño' : 'Baños'}
               </span>
               <span>•</span>
               <span className="flex items-center gap-1 text-[#580812] font-bold">
-                <CookingPot className="w-3.5 h-3.5" /> 1 Cocina
+                <CookingPot className="w-3.5 h-3.5" /> {activeKitchenCount} {activeKitchenCount === 1 ? 'Cocina' : 'Cocinas'}
               </span>
             </div>
           </div>

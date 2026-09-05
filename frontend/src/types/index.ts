@@ -41,6 +41,19 @@ export interface EstimateItem {
   totalPrice: number;
 }
 
+// Catálogo de partidas reutilizables para armar presupuestos — se copian al
+// añadirlas a un Estimate, no quedan enlazadas en vivo (ver EstimateItem).
+export interface EstimateItemTemplate {
+  id: string;
+  category: string;
+  description: string;
+  unit: 'm²' | 'm.l.' | 'ud' | 'global' | 'horas';
+  unitCost: number;
+  unitPrice: number;
+  projectType: ProjectType;
+  isActive: boolean;
+}
+
 export interface Estimate {
   id: string;
   estimateNumber: string;

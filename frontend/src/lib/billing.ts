@@ -1,5 +1,5 @@
 import { apiFetch } from './api';
-import { Estimate, EstimateItem, NoteEntry, ProjectType } from '../types';
+import { Estimate, EstimateItem, EstimateItemTemplate, NoteEntry, ProjectType } from '../types';
 
 interface NoteEntryDTO {
   author_email: string | null;
@@ -239,4 +239,85 @@ export async function addEstimateNote(id: string, text: string): Promise<Estimat
     body: { text },
   });
   return fromDTO(dto);
+}
+
+// ── Catálogo de partidas (QuotationItemTemplate) ─────────────────────────
+
+interface QuotationItemTemplateDTO {
+  id: number;
+  category: string;
+  description: string;
+  unit: string;
+  unit_cost: string | null;
+  unit_price: string;
+  kind: string;
+  is_active: boolean;
+}
+
+function fromTemplateDTO(dto: QuotationItemTemplateDTO): EstimateItemTemplate {
+  return {
+    id: String(dto.id),
+    category: dto.category,
+    description: dto.description,
+    unit: (dto.unit || 'ud') as EstimateItemTemplate['unit'],
+    unitCost: dto.unit_cost != null ? Number(dto.unit_cost) : 0,
+    unitPrice: Number(dto.unit_price),
+    projectType: (dto.kind || 'integral') as ProjectType,
+    isActive: dto.is_active,
+  };
+}
+
+export async function fetchItemTemplates(): Promise<EstimateItemTemplate[]> {
+  const data = await apiFetch<QuotationItemTemplateDTO[]>('/billing/item-templates/');
+  return data.map(fromTemplateDTO);
+}
+
+export interface ItemTemplateInput {
+  category: string;
+  description: string;
+  unit: EstimateItemTemplate['unit'];
+  unitCost: number;
+  unitPrice: number;
+  projectType: ProjectType;
+  isActive: boolean;
+}
+
+export async function createItemTemplate(input: ItemTemplateInput): Promise<EstimateItemTemplate> {
+  const dto = await apiFetch<QuotationItemTemplateDTO>('/billing/item-templates/', {
+    method: 'POST',
+    body: {
+      category: input.category,
+      description: input.description,
+      unit: input.unit,
+      unit_cost: input.unitCost,
+      unit_price: input.unitPrice,
+      kind: input.projectType,
+      is_active: input.isActive,
+    },
+  });
+  return fromTemplateDTO(dto);
+}
+
+export async function updateItemTemplate(
+  id: string,
+  input: Partial<ItemTemplateInput>
+): Promise<EstimateItemTemplate> {
+  const body: Record<string, unknown> = {};
+  if (input.category !== undefined) body.category = input.category;
+  if (input.description !== undefined) body.description = input.description;
+  if (input.unit !== undefined) body.unit = input.unit;
+  if (input.unitCost !== undefined) body.unit_cost = input.unitCost;
+  if (input.unitPrice !== undefined) body.unit_price = input.unitPrice;
+  if (input.projectType !== undefined) body.kind = input.projectType;
+  if (input.isActive !== undefined) body.is_active = input.isActive;
+
+  const dto = await apiFetch<QuotationItemTemplateDTO>(`/billing/item-templates/${id}/`, {
+    method: 'PATCH',
+    body,
+  });
+  return fromTemplateDTO(dto);
+}
+
+export async function deleteItemTemplate(id: string): Promise<void> {
+  await apiFetch(`/billing/item-templates/${id}/`, { method: 'DELETE' });
 }

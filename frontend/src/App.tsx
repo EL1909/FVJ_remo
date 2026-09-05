@@ -57,7 +57,19 @@ import {
 } from './lib/personal';
 
 // Presupuestos
-import { fetchEstimates, createEstimate, updateEstimate, updateEstimateStatus, addEstimateNote, NewEstimateInput } from './lib/billing';
+import {
+  fetchEstimates,
+  createEstimate,
+  updateEstimate,
+  updateEstimateStatus,
+  addEstimateNote,
+  NewEstimateInput,
+  fetchItemTemplates,
+  createItemTemplate,
+  updateItemTemplate,
+  deleteItemTemplate,
+  ItemTemplateInput,
+} from './lib/billing';
 
 // Órdenes de Trabajo
 import {
@@ -114,6 +126,7 @@ import {
 import {
   Client,
   Estimate,
+  EstimateItemTemplate,
   WorkOrder,
   Invoice,
   MaterialPurchase,
@@ -293,6 +306,14 @@ export default function App() {
     fetchMaterialPurchases()
       .then(setPurchases)
       .catch((err) => console.error('No se pudieron cargar las compras de material.', err));
+  }, [viewMode]);
+  const [itemTemplates, setItemTemplates] = useState<EstimateItemTemplate[]>([]);
+
+  useEffect(() => {
+    if (viewMode !== 'admin') return;
+    fetchItemTemplates()
+      .then(setItemTemplates)
+      .catch((err) => console.error('No se pudo cargar el catálogo de partidas.', err));
   }, [viewMode]);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
 
@@ -546,6 +567,21 @@ export default function App() {
   const handlePayMaterialPurchase = async (id: string) => {
     const updated = await payMaterialPurchase(id);
     setPurchases((prev) => prev.map((p) => (p.id === id ? updated : p)));
+  };
+
+  const handleAddItemTemplate = async (data: ItemTemplateInput) => {
+    const created = await createItemTemplate(data);
+    setItemTemplates((prev) => [...prev, created]);
+  };
+
+  const handleUpdateItemTemplate = async (id: string, data: Partial<ItemTemplateInput>) => {
+    const updated = await updateItemTemplate(id, data);
+    setItemTemplates((prev) => prev.map((t) => (t.id === id ? updated : t)));
+  };
+
+  const handleDeleteItemTemplate = async (id: string) => {
+    await deleteItemTemplate(id);
+    setItemTemplates((prev) => prev.filter((t) => t.id !== id));
   };
 
   const handleAddSocialPost = async (data: NewSocialPostInput) => {
@@ -866,6 +902,7 @@ export default function App() {
             <EstimatesView
               estimates={estimates}
               clients={clients}
+              itemTemplates={itemTemplates}
               onSaveEstimate={handleSaveEstimate}
               onUpdateEstimate={handleUpdateEstimate}
               onUpdateEstimateStatus={handleUpdateEstimateStatus}
@@ -908,6 +945,10 @@ export default function App() {
               onSavePurchase={handleSavePurchase}
               onUpdatePurchaseStatus={handleUpdatePurchaseStatus}
               onPayPurchase={handlePayMaterialPurchase}
+              itemTemplates={itemTemplates}
+              onAddItemTemplate={handleAddItemTemplate}
+              onUpdateItemTemplate={handleUpdateItemTemplate}
+              onDeleteItemTemplate={handleDeleteItemTemplate}
             />
           )}
 
