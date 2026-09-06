@@ -734,7 +734,7 @@ export const initialEmployees: Employee[] = [
     startDate: '2024-03-15',
     bio: 'Jefe de obra certificado con más de 12 años en reformas de cocinas de lujo e instalaciones de fontanería.',
     notes: [],
-    hasAccount: false,
+    accountStatus: 'none',
     expenses: [
       {
         id: 'exp-1',
@@ -775,7 +775,7 @@ export const initialEmployees: Employee[] = [
     startDate: '2025-01-10',
     bio: 'Especialista en colectores de fontanería multicapa, válvulas ocultas y griferías monomando empotradas.',
     notes: [],
-    hasAccount: false,
+    accountStatus: 'none',
     expenses: [
       {
         id: 'exp-3',
@@ -804,7 +804,7 @@ export const initialEmployees: Employee[] = [
     startDate: '2024-09-01',
     bio: 'Maestro alicatador experto en rectificados de gran formato (120x60cm) y cortes a 45º para ingletes.',
     notes: [],
-    hasAccount: false,
+    accountStatus: 'none',
     expenses: [
       {
         id: 'exp-4',
@@ -832,7 +832,7 @@ export const initialEmployees: Employee[] = [
     startDate: '2025-05-12',
     bio: 'Aparejador en prácticas. Realiza el levantamiento de planos 3D y presupuesto inicial de baños.',
     notes: [],
-    hasAccount: false,
+    accountStatus: 'none',
     expenses: [
       {
         id: 'exp-5',
@@ -859,7 +859,7 @@ export const initialEmployees: Employee[] = [
     startDate: '2025-02-01',
     bio: 'Montador certificado de cocinas de alto standing y mecanismos de extracción extraibles.',
     notes: [],
-    hasAccount: false,
+    accountStatus: 'none',
     expenses: [],
   },
 ];

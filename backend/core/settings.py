@@ -185,6 +185,11 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://esfuerzovz.com/fvj')
 
+# Vigencia de los links de "elegir contraseña" (reset e invitación de
+# equipo comparten el mismo mecanismo de token de Django) — sin esto el
+# default es de 3 días, que no coincide con lo que dice el copy del email.
+PASSWORD_RESET_TIMEOUT = 60 * 60 * 24  # 24 horas
+
 # Montaje bajo subruta. URL_PREFIX y FORCE_SCRIPT_NAME son ALTERNATIVAS, no
 # se usan juntas: si se ponen las dos, reverse() genera /fvj/fvj/... y se
 # rompen los enlaces de email y los redirects del admin.

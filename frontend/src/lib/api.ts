@@ -141,3 +141,26 @@ export async function requestPasswordReset(email: string): Promise<void> {
     throw new ApiError(data.error || data.detail || 'No se pudo enviar el correo de restablecimiento.', res.status);
   }
 }
+
+// Confirma el link de "elegir contraseña" — sirve tanto para recuperar una
+// olvidada como para activar una cuenta recién invitada (mismo mecanismo).
+export async function confirmPasswordReset(
+  uid: string,
+  token: string,
+  newPassword: string
+): Promise<void> {
+  const res = await fetch(`${API_URL}/accounts/password-reset/confirm/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      uid,
+      token,
+      new_password1: newPassword,
+      new_password2: newPassword,
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new ApiError(data.error || 'No se pudo actualizar la contraseña.', res.status);
+  }
+}

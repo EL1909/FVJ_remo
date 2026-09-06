@@ -16,6 +16,7 @@ import { EmployeesView } from './components/views/EmployeesView';
 import { LandingPage } from './components/views/LandingPage';
 import { WebsiteCmsView } from './components/views/WebsiteCmsView';
 import { CapabilitiesPresentation } from './components/views/CapabilitiesPresentation';
+import { SetPasswordPage } from './components/views/SetPasswordPage';
 
 // Modals
 import { QuickEventModal, QuickClientModal } from './components/modals/QuickModals';
@@ -51,6 +52,7 @@ import {
   updateEmployee,
   addEmployeeNote,
   createExpenseClaim,
+  inviteEmployee,
   NewEmployeeInput,
   UpdateEmployeeInput,
   NewExpenseInput,
@@ -175,6 +177,17 @@ export default function App() {
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
+
+  // Link de "elegir contraseña" (reset o invitación de equipo) — el backend
+  // genera una ruta real (/reset-password?uid=&token=), no un hash, porque
+  // llega por email y debe abrir directo sin depender de JS previo.
+  const resetPasswordParams = (() => {
+    if (!window.location.pathname.endsWith('/reset-password')) return null;
+    const params = new URLSearchParams(window.location.search);
+    const uid = params.get('uid');
+    const token = params.get('token');
+    return uid && token ? { uid, token } : null;
+  })();
 
   const [viewMode, setViewMode] = useState<'public' | 'admin'>('public');
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
@@ -643,6 +656,13 @@ export default function App() {
     );
   };
 
+  const handleInviteEmployee = async (id: string, email: string) => {
+    const updated = await inviteEmployee(id, email);
+    setEmployees((prev) =>
+      prev.map((emp) => (emp.id === id ? { ...updated, expenses: emp.expenses } : emp))
+    );
+  };
+
   const handleAddEmployeeNote = async (id: string, text: string) => {
     const updated = await addEmployeeNote(id, text);
     setEmployees((prev) => prev.map((emp) => (emp.id === id ? { ...emp, notes: updated.notes } : emp)));
@@ -763,6 +783,10 @@ export default function App() {
 
   if (showCapabilities) {
     return <CapabilitiesPresentation companyData={publicCompanyData} />;
+  }
+
+  if (resetPasswordParams) {
+    return <SetPasswordPage uid={resetPasswordParams.uid} token={resetPasswordParams.token} />;
   }
 
   if (viewMode === 'public') {
@@ -895,6 +919,7 @@ export default function App() {
               onAssignEmployee={handleAssignEmployee}
               onUnassignEmployee={handleUnassignEmployee}
               onAddExpense={handleAddExpense}
+              onInviteEmployee={handleInviteEmployee}
             />
           )}
 

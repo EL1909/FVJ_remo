@@ -47,6 +47,7 @@ interface EmployeesViewProps {
   onAssignEmployee: (employeeId: string, type: 'obra' | 'visita', targetId: string) => Promise<void>;
   onUnassignEmployee: (employeeId: string, type: 'obra' | 'visita', targetId: string) => Promise<void>;
   onAddExpense: (expense: NewExpenseInput) => Promise<void>;
+  onInviteEmployee: (id: string, email: string) => Promise<void>;
 }
 
 // Las asignaciones activas de un empleado no son un campo propio: se derivan
@@ -98,6 +99,7 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
   onAssignEmployee,
   onUnassignEmployee,
   onAddExpense,
+  onInviteEmployee,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
@@ -120,6 +122,7 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
   const [newEmpName, setNewEmpName] = useState('');
   const [newEmpRole, setNewEmpRole] = useState<EmployeeRole>('fontanero');
   const [newEmpPhone, setNewEmpPhone] = useState('');
+  const [newEmpEmail, setNewEmpEmail] = useState('');
   const [newEmpSalaryType, setNewEmpSalaryType] = useState<'mensual' | 'por_hora' | 'por_obra'>('mensual');
   const [newEmpSalaryAmount, setNewEmpSalaryAmount] = useState<number>(2000);
   const [newEmpBio, setNewEmpBio] = useState('');
@@ -172,6 +175,9 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [resetPasswordMessage, setResetPasswordMessage] = useState<string | null>(null);
   const [resetPasswordError, setResetPasswordError] = useState<string | null>(null);
+  const [isInviting, setIsInviting] = useState(false);
+  const [inviteMessage, setInviteMessage] = useState<string | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
 
   const editingEmployee = editingEmployeeId
     ? employees.find((e) => e.id === editingEmployeeId)
@@ -192,6 +198,24 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
     }
   };
 
+  // Mismo botón sirve para invitar por primera vez y para reenviar mientras
+  // el estado siga en 'invited' (ver EstimatesView... no, ver evz_core
+  // TeamMemberViewSet.invite: es idempotente en ese sentido).
+  const handleInvite = async () => {
+    if (!editingEmployeeId || !newEmpEmail.trim()) return;
+    setInviteError(null);
+    setInviteMessage(null);
+    setIsInviting(true);
+    try {
+      await onInviteEmployee(editingEmployeeId, newEmpEmail.trim());
+      setInviteMessage(`Invitación enviada a ${newEmpEmail.trim()}.`);
+    } catch (err) {
+      setInviteError(err instanceof ApiError ? err.message : 'No se pudo enviar la invitación.');
+    } finally {
+      setIsInviting(false);
+    }
+  };
+
   const handleCreateEmployeeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newEmpName.trim()) return;
@@ -203,6 +227,7 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
         name: newEmpName.trim(),
         role: newEmpRole,
         phone: newEmpPhone.trim(),
+        email: newEmpEmail.trim(),
         salaryType: newEmpSalaryType,
         salaryAmount: Number(newEmpSalaryAmount) || 0,
         bio: newEmpBio.trim(),
@@ -229,6 +254,7 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
     setNewEmpName(emp.name);
     setNewEmpRole(emp.role);
     setNewEmpPhone(emp.phone);
+    setNewEmpEmail(emp.email);
     setNewEmpSalaryType(emp.salaryType);
     setNewEmpSalaryAmount(emp.salaryAmount);
     setNewEmpBio(emp.bio || '');
@@ -238,6 +264,8 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
     setEmployeeFormError(null);
     setResetPasswordMessage(null);
     setResetPasswordError(null);
+    setInviteMessage(null);
+    setInviteError(null);
     setIsAddEmployeeOpen(true);
   };
 
@@ -251,6 +279,7 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
     setNewEmpName('');
     setNewEmpRole('fontanero');
     setNewEmpPhone('');
+    setNewEmpEmail('');
     setNewEmpSalaryType('mensual');
     setNewEmpSalaryAmount(2000);
     setNewEmpBio('');
@@ -845,7 +874,18 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                 </div>
               </div>
 
-              {editingEmployee?.hasAccount ? (
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={newEmpEmail}
+                  onChange={(e) => setNewEmpEmail(e.target.value)}
+                  placeholder="empleado@ejemplo.com"
+                  className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#580812]"
+                />
+              </div>
+
+              {editingEmployee?.accountStatus === 'active' ? (
                 <div className="bg-[#FAF8F5] border border-stone-200 rounded-xl p-3 space-y-2">
                   <p className="text-[11px] text-slate-600">
                     Tiene acceso al panel con <strong>{editingEmployee.email}</strong>.
@@ -865,9 +905,39 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                     <p className="text-[11px] font-bold text-red-600">{resetPasswordError}</p>
                   )}
                 </div>
+              ) : editingEmployeeId ? (
+                <div className="bg-[#FAF8F5] border border-stone-200 rounded-xl p-3 space-y-2">
+                  {editingEmployee?.accountStatus === 'invited' ? (
+                    <p className="text-[11px] text-slate-600">
+                      Invitación enviada a <strong>{editingEmployee.email}</strong>, esperando que active su cuenta.
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-slate-600">
+                      Todavía no tiene acceso al panel.
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleInvite}
+                    disabled={isInviting || !newEmpEmail.trim()}
+                    className="px-3 py-1.5 rounded-lg bg-[#580812] hover:bg-[#42050D] text-white font-bold text-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    {isInviting
+                      ? 'Enviando...'
+                      : editingEmployee?.accountStatus === 'invited'
+                      ? 'Reenviar Invitación'
+                      : 'Enviar Invitación'}
+                  </button>
+                  {inviteMessage && (
+                    <p className="text-[11px] font-bold text-emerald-700">{inviteMessage}</p>
+                  )}
+                  {inviteError && (
+                    <p className="text-[11px] font-bold text-red-600">{inviteError}</p>
+                  )}
+                </div>
               ) : (
                 <p className="text-[11px] text-slate-500">
-                  El acceso al panel (email/contraseña) se activa después, por separado.
+                  Guarda el empleado primero; luego podrás invitarlo a activar su cuenta desde aquí.
                 </p>
               )}
 

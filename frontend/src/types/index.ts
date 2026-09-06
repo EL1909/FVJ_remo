@@ -292,7 +292,9 @@ export interface Employee {
   // del hilo de notas de abajo, que es un registro de eventos con autor y fecha.
   bio?: string;
   notes: NoteEntry[];
-  hasAccount: boolean;
+  // 'none' = sin cuenta; 'invited' = cuenta creada, esperando que ponga
+  // contraseña; 'active' = ya la puso y puede loguearse.
+  accountStatus: 'none' | 'invited' | 'active';
 }
 
 export interface PublicReview {

@@ -15,7 +15,7 @@ interface TeamMemberDTO {
   id: number;
   display_name: string;
   email: string;
-  has_account: boolean;
+  account_status: 'none' | 'invited' | 'active';
   photo: string | null;
   bio: string;
   is_active: boolean;
@@ -115,7 +115,7 @@ function fromTeamMemberDTO(dto: TeamMemberDTO): Employee {
     startDate: dto.hired_at || '',
     bio: dto.bio || undefined,
     notes: (dto.notes || []).map(fromNoteDTO),
-    hasAccount: dto.has_account,
+    accountStatus: dto.account_status,
   };
 }
 
@@ -158,7 +158,7 @@ export async function fetchEmployees(): Promise<Employee[]> {
 
 export type NewEmployeeInput = Pick<
   Employee,
-  'name' | 'role' | 'phone' | 'salaryType' | 'salaryAmount' | 'bio'
+  'name' | 'role' | 'phone' | 'email' | 'salaryType' | 'salaryAmount' | 'bio'
 > & { photo?: File };
 
 // Igual que updateCompanyData (lib/business.ts): JSON normal, o FormData
@@ -180,6 +180,7 @@ export async function createEmployee(input: NewEmployeeInput): Promise<Employee>
         display_name: input.name,
         role: input.role,
         phone: input.phone,
+        email: input.email,
         salary_type: SALARY_TYPE_TO_BACKEND[input.salaryType],
         salary_amount: String(input.salaryAmount),
         bio: input.bio || '',
@@ -200,6 +201,7 @@ export async function updateEmployee(id: string, input: UpdateEmployeeInput): Pr
         display_name: input.name,
         role: input.role,
         phone: input.phone,
+        email: input.email,
         salary_type: SALARY_TYPE_TO_BACKEND[input.salaryType],
         salary_amount: String(input.salaryAmount),
         bio: input.bio || '',
@@ -209,6 +211,16 @@ export async function updateEmployee(id: string, input: UpdateEmployeeInput): Pr
     ),
   });
   return fromTeamMemberDTO(dto);
+}
+
+// Crea/vincula la cuenta de acceso del empleado y le manda el correo de
+// activación — también sirve para reenviar mientras esté en 'invited'.
+export async function inviteEmployee(id: string, email: string): Promise<Employee> {
+  const data = await apiFetch<{ team_member: TeamMemberDTO }>(
+    `/business/team-members/${id}/invite/`,
+    { method: 'POST', body: { email } }
+  );
+  return fromTeamMemberDTO(data.team_member);
 }
 
 export async function addEmployeeNote(id: string, text: string): Promise<Employee> {

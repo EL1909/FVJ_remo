@@ -92,7 +92,7 @@ class PasswordResetRequestView(APIView):
                 f"Hola {nombre},\n\n"
                 "Se solicitó restablecer la contraseña de tu cuenta. "
                 "Si no fuiste vos, podés ignorar este mensaje.\n\n"
-                "El enlace para establecer una nueva contraseña expira en 15 minutos."
+                "El enlace para establecer una nueva contraseña expira en 24 horas."
             ),
             button_text='Restablecer contraseña',
             button_url=reset_url,
