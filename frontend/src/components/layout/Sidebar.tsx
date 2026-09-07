@@ -110,7 +110,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'materials_costs',
-      label: 'Materiales y Costos',
+      label: 'Servicios y Costos',
       sublabel: 'Compras y proveedores',
       icon: <Package className="w-5 h-5" />,
     },
