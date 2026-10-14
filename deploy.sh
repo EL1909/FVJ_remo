@@ -41,6 +41,22 @@ cd "$APP_DIR/backend"
 source "$VENV/bin/activate"
 pip install --upgrade -r requirements.txt
 
+# Aun con --upgrade, pip a veces da por satisfecha una dependencia instalada
+# desde git y no la reemplaza. Se compara la versión instalada con el tag de
+# requirements.txt y, si no coinciden, se fuerza la reinstalación.
+EVZ_REQ=$(grep -E '^evz-backbone(\[[^]]*\])? @' requirements.txt | tr -d '\r' | sed 's/[[:space:]]*$//')
+EVZ_TAG=$(sed -E 's/.*@v?([0-9][0-9.]*)$/\1/' <<<"$EVZ_REQ")
+evz_instalada() { python -c 'from importlib.metadata import version; print(version("evz-backbone"))'; }
+if [ "$(evz_instalada)" != "$EVZ_TAG" ]; then
+  echo "==> evz-backbone instalado $(evz_instalada), se esperaba $EVZ_TAG: reinstalando"
+  pip install --force-reinstall --no-deps "$EVZ_REQ"
+fi
+if [ "$(evz_instalada)" != "$EVZ_TAG" ]; then
+  echo "ERROR: evz-backbone quedó en $(evz_instalada), se esperaba $EVZ_TAG." >&2
+  exit 1
+fi
+echo "==> evz-backbone $EVZ_TAG"
+
 if [ ! -f ".env" ]; then
   echo "ERROR: falta $APP_DIR/backend/.env — crealo antes de seguir (ver deploy/env.example)." >&2
   exit 1
