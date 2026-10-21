@@ -19,7 +19,7 @@ self.addEventListener('push', (event) => {
     // en vez de apilar notificaciones repetidas.
     tag: payload.notif_type || 'evz-notification',
     renotify: true,
-    data: { link: payload.link || '/', notificationId: payload.notification_id },
+    data: { link: payload.link || '/', view: payload.data?.view, notificationId: payload.notification_id },
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
@@ -27,6 +27,14 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+
+  // Las cargas de la cuadrilla (evz_clerk) abren directo la sesión en
+  // /fvj/clerk/, que es una página aparte servida por Django.
+  const { link, view } = event.notification.data || {};
+  if (view === 'clerk' && link) {
+    event.waitUntil(self.clients.openWindow(new URL(link, self.location.origin).href));
+    return;
+  }
 
   // El frontend no tiene router de URLs propio (SPA de un solo estado, sin
   // rutas): al hacer click se enfoca/abre la app en la raíz y es la propia

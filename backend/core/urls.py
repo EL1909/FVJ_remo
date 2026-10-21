@@ -19,6 +19,9 @@ urlpatterns = [
     path(f'{P}api/calendars/', include('evz_calendars.urls')),
     path(f'{P}api/fieldwork/', include('evz_fieldwork.urls')),
     path(f'{P}api/showcase/', include('evz_showcase.urls')),
+    path(f'{P}api/clerk/', include('evz_clerk.urls')),
+    # La pantalla de chat (la sirve Django, no el frontend de Vite).
+    path(f'{P}clerk/', include('evz_clerk.ui_urls')),
 ]
 
 if settings.DEBUG:

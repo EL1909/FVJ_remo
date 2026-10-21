@@ -67,6 +67,7 @@ INSTALLED_APPS = [
     'evz_fieldwork',
     'evz_showcase',
     'evz_sync',
+    'evz_clerk',
     # Propias del cliente
     'accounts',
 ]
@@ -86,7 +87,7 @@ MIDDLEWARE = [
 
 CORS_ALLOWED_ORIGINS = _csv_env(
     'CORS_ALLOWED_ORIGINS',
-    'http://localhost:5173,http://localhost:3000,https://esfuerzovz.com',
+    'http://localhost:5173,http://localhost:3001,https://esfuerzovz.com',
 )
 
 REST_FRAMEWORK = {
@@ -225,3 +226,24 @@ VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY', '')
 VAPID_CLAIM_EMAIL = os.environ.get('VAPID_CLAIM_EMAIL', 'info@remodelacionesfvj.es')
 
 TEMPLATES[0]['DIRS'] = [BASE_DIR / 'templates']
+
+# ── evz_clerk: carga de datos por chat (/fvj/clerk/) ─────────────────────
+# El guion vive en backend/clerk_script.py. La pantalla lee el JWT del panel
+# desde localStorage (mismo dominio), con las mismas claves que
+# frontend/src/lib/api.ts.
+EVZ_CLERK_SCRIPT = 'clerk_script'
+EVZ_CLERK_TITLE = 'Carga por chat · FVJ'
+EVZ_CLERK_TOKEN_STORAGE_KEY = 'fvj_access_token'
+EVZ_CLERK_REFRESH_STORAGE_KEY = 'fvj_refresh_token'
+EVZ_CLERK_REFRESH_URL = f'/{URL_PREFIX}api/accounts/token/refresh/'
+EVZ_CLERK_LOGIN_URL = FRONTEND_URL.rstrip('/') + '/'
+# Botón «Salir de Clerk»: de vuelta al sitio de FVJ.
+EVZ_CLERK_EXIT_URL = FRONTEND_URL.rstrip('/') + '/'
+
+# IA (Gemini): sin GEMINI_API_KEY o sin modelo en .env, el chat funciona solo
+# con respuestas estructuradas. El modelo es una versión fija, nunca -latest.
+EVZ_CLERK_AI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+EVZ_CLERK_AI_MODEL = os.environ.get('EVZ_CLERK_AI_MODEL', '')
+EVZ_CLERK_AI_BACKEND = (
+    'evz_clerk.ai.gemini.GeminiBackend' if EVZ_CLERK_AI_API_KEY and EVZ_CLERK_AI_MODEL else None
+)

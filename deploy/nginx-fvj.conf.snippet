@@ -21,6 +21,11 @@
     location /fvj/static/ {
         alias /home/efrain19091/projects/fvj_remo/fvj_remo/backend/static/;
     }
+    # Archivos sin confirmar de evz_clerk (y cualquier otro private/): solo
+    # salen por la API, que comprueba permisos. Va antes del alias de media.
+    location ~ ^/fvj/media/.*/private/ {
+        deny all;
+    }
     location /fvj/media/ {
         alias /home/efrain19091/projects/fvj_remo/fvj_remo/backend/media/;
     }
@@ -32,6 +37,26 @@
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         client_max_body_size 25m;
+    }
+
+    # FVJ Remodelaciones - Carga por chat (evz_clerk). La pantalla la sirve
+    # Django, no el frontend; la API admite varias fotos por envío.
+    location ^~ /fvj/clerk/ {
+        proxy_pass http://127.0.0.1:8003;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    location ^~ /fvj/api/clerk/ {
+        proxy_pass http://127.0.0.1:8003;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 300s;
+        client_max_body_size 60m;
     }
 
     # FVJ Remodelaciones - API

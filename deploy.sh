@@ -64,6 +64,9 @@ fi
 
 echo "==> Backend: migraciones y estáticos"
 python manage.py migrate
+# Tablas de evz_showcase/evz_treasury cuyas migraciones el backbone reescribió
+# después de aplicadas. Idempotente: en una base sana solo imprime "ok".
+python manage.py repair_backbone_schema
 python manage.py collectstatic --noinput
 
 echo "==> Frontend: dependencias y build"

@@ -17,7 +17,9 @@ import {
   UserCheck,
   Globe,
   LogOut,
+  MessageSquarePlus,
 } from 'lucide-react';
+import { clerkUrl } from '../../lib/clerk';
 
 export type ViewType =
   | 'dashboard'
@@ -235,6 +237,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 );
               })}
             </div>
+
+            {/* Carga por chat (evz_clerk): pantalla aparte, servida por el backend. */}
+            <a
+              href={clerkUrl()}
+              className="w-full flex items-center justify-between p-4 rounded-2xl text-left transition-all bg-slate-900/80 hover:bg-slate-800 text-stone-200 border border-slate-800 group"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="p-2.5 rounded-xl bg-white/5 text-stone-300 group-hover:text-rose-300 group-hover:bg-white/10">
+                  <MessageSquarePlus className="w-5 h-5" />
+                </div>
+                <div className="truncate">
+                  <div className="text-sm font-bold truncate">Carga por chat</div>
+                  <div className="text-xs truncate text-stone-400">Fotos y avances desde la obra</div>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-stone-500 group-hover:text-white shrink-0" />
+            </a>
           </div>
 
           {/* Footer Info */}

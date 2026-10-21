@@ -102,3 +102,46 @@ bash /home/efrain19091/projects/fvj_remo/fvj_remo/deploy.sh
 Hace `git pull`, migra, junta estáticos, reconstruye el frontend, y
 reinicia gunicorn. nginx no necesita tocarse — solo lee los archivos que el
 script actualiza.
+
+## Subida a backbone v1.8.0 + evz_clerk (una vez)
+
+FVJ pasa de backbone `v1.3.0` a `v1.8.0`, con migraciones de varias
+versiones y la app `evz_clerk` (carga por chat en `/fvj/clerk/`).
+
+1. **Respaldo**, por si hay que volver atrás:
+
+   ```bash
+   cd /home/efrain19091/projects/fvj_remo/fvj_remo && git rev-parse HEAD   # anotarlo
+   sudo -u postgres pg_dump -Fc fvj_remo > ~/fvj_remo-$(date +%F).dump
+   ```
+
+2. **nginx:** agregar los bloques nuevos de `deploy/nginx-fvj.conf.snippet`
+   (`/fvj/clerk/`, `/fvj/api/clerk/` y el `deny` de `private/`), cada uno
+   antes del bloque más general que lo cubriría, y `sudo nginx -t && sudo
+   systemctl reload nginx`.
+3. **`backend/.env`:** `GEMINI_API_KEY` y `EVZ_CLERK_AI_MODEL` (ver
+   `.env.example`). Sin `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` no hay push
+   de los avisos, solo la campana.
+4. **Deploy:** `bash deploy.sh`.
+5. **Comprobar:**
+
+   ```bash
+   cd backend && source ../../venv/bin/activate
+   python manage.py clerk_ai_check            # key y modelo de Gemini
+   curl -I https://esfuerzovz.com/fvj/clerk/  # 200, servido por Django
+   ```
+
+   Una URL directa a un archivo `.../media/clerk/private/...` tiene que dar
+   403.
+6. **Cron diario** (`crontab -e`): abandona cargas de más de 15 días y borra
+   sus archivos de preparación.
+
+   ```
+   30 3 * * * cd /home/efrain19091/projects/fvj_remo/fvj_remo/backend && ../../venv/bin/python manage.py clerk_maintenance >> ../../clerk_maintenance.log 2>&1
+   ```
+
+**Volver atrás:** revertir el commit en `main` desde local (`git revert`) y
+hacer push, porque `deploy.sh` hace `git pull` y no sirve un `checkout` suelto.
+En la VM: `sudo systemctl stop gunicorn-fvj.service`, restaurar el respaldo
+(`sudo -u postgres pg_restore --clean -d fvj_remo ~/fvj_remo-<fecha>.dump`)
+y `bash deploy.sh`.

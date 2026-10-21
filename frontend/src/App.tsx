@@ -240,6 +240,10 @@ export default function App() {
     } else if (view === 'estimates' && notification.data?.quotation_id != null) {
       setCurrentView('estimates');
       setFocusEstimateId(String(notification.data.quotation_id));
+    } else if (view === 'clerk' && notification.data?.url) {
+      // Cargas de la cuadrilla (evz_clerk): la pantalla /fvj/clerk/ la sirve
+      // Django, no este frontend.
+      window.location.assign(notification.data.url);
     }
   };
 

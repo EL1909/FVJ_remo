@@ -25,6 +25,7 @@ import {
 import { WorkOrder, WorkOrderStage, WorkOrderPhoto, Employee } from '../../types';
 import { ApiError } from '../../lib/api';
 import { NotesThread } from '../shared/NotesThread';
+import { clerkTaskUrl } from '../../lib/clerk';
 
 interface WorkOrdersViewProps {
   workOrders: WorkOrder[];
@@ -337,12 +338,22 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                   <Camera className="w-3.5 h-3.5 text-[#800020]" />
                   <span>Fotos de Avance ({order.photos.length})</span>
                 </span>
-                <button
-                  onClick={() => setSelectedOrder(order)}
-                  className="text-[#800020] hover:text-[#66001a] font-bold cursor-pointer"
-                >
-                  + Subir / Ver Galería
-                </button>
+                <div className="flex items-center gap-3">
+                  <a
+                    href={clerkTaskUrl(order.id)}
+                    className="text-[#0A192F] hover:text-[#800020] font-bold flex items-center gap-1"
+                    title="Cargar fotos y notas conversando (evz_clerk)"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    <span>Por chat</span>
+                  </a>
+                  <button
+                    onClick={() => setSelectedOrder(order)}
+                    className="text-[#800020] hover:text-[#66001a] font-bold cursor-pointer"
+                  >
+                    + Subir / Ver Galería
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-3 gap-2">
