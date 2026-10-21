@@ -1,10 +1,11 @@
-# Bloque para FVJ Remodelaciones - agregar dentro del server{} de puerto 443
-# en /etc/nginx/sites-available/esfuerzovz, en el mismo lugar/estilo que los
-# bloques ya existentes de "MCnails". Despues de pegarlo:
+# Bloques de FVJ Remodelaciones. deploy.sh copia este archivo a
+# /etc/nginx/snippets/fvj.conf, que el server{} de puerto 443 de
+# /etc/nginx/sites-available/esfuerzovz incluye con
 #
-#   sudo nginx -t && sudo systemctl reload nginx
+#   include /etc/nginx/snippets/fvj.conf;
 #
-# (deploy.sh NO toca nginx - este bloque se agrega una sola vez a mano.)
+# y recarga nginx si cambió (con nginx -t antes). No editar la copia del
+# servidor: el próximo deploy la reemplaza.
 
     location = /fvj {
         return 301 /fvj/;

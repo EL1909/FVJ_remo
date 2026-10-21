@@ -75,12 +75,13 @@ sudo systemctl status gunicorn-fvj.service   # debe decir "active (running)"
 
 ### 7. Bloque de nginx
 
-Pegar el contenido de `deploy/nginx-fvj.conf.snippet` dentro del `server{}`
-de puerto 443 en `/etc/nginx/sites-available/esfuerzovz` — mismo lugar y
-estilo que los bloques de "MCnails" ya existentes.
+Los bloques viven en `deploy/nginx-fvj.conf.snippet`. `deploy.sh` los copia
+a `/etc/nginx/snippets/fvj.conf` y recarga nginx cuando cambian. Solo hace
+falta, una vez, incluir ese archivo dentro del `server{}` de puerto 443 en
+`/etc/nginx/sites-available/esfuerzovz`, junto a los de las otras apps:
 
-```bash
-sudo nginx -t && sudo systemctl reload nginx
+```nginx
+include /etc/nginx/snippets/fvj.conf;
 ```
 
 ### 8. Verificar
@@ -99,9 +100,10 @@ Solo:
 bash /home/efrain19091/projects/fvj_remo/fvj_remo/deploy.sh
 ```
 
-Hace `git pull`, migra, junta estáticos, reconstruye el frontend, y
-reinicia gunicorn. nginx no necesita tocarse — solo lee los archivos que el
-script actualiza.
+Hace `git pull`, migra, junta estáticos, reconstruye el frontend, reinicia
+gunicorn y, si `deploy/nginx-fvj.conf.snippet` cambió, lo copia a
+`/etc/nginx/snippets/fvj.conf` y recarga nginx. Si `nginx -t` lo rechaza,
+restaura el anterior y el deploy termina con error.
 
 ## Subida a backbone v1.8.0 + evz_clerk (una vez)
 
@@ -115,10 +117,8 @@ versiones y la app `evz_clerk` (carga por chat en `/fvj/clerk/`).
    sudo -u postgres pg_dump -Fc fvj_remo > ~/fvj_remo-$(date +%F).dump
    ```
 
-2. **nginx:** agregar los bloques nuevos de `deploy/nginx-fvj.conf.snippet`
-   (`/fvj/clerk/`, `/fvj/api/clerk/` y el `deny` de `private/`), cada uno
-   antes del bloque más general que lo cubriría, y `sudo nginx -t && sudo
-   systemctl reload nginx`.
+2. **nginx:** nada a mano; `deploy.sh` copia el snippet con los bloques
+   nuevos (`/fvj/clerk/`, `/fvj/api/clerk/` y el `deny` de `private/`).
 3. **`backend/.env`:** `GEMINI_API_KEY` y `EVZ_CLERK_AI_MODEL` (ver
    `.env.example`). Sin `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` no hay push
    de los avisos, solo la campana.

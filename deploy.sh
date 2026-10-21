@@ -2,17 +2,19 @@
 #
 # Despliega/actualiza FVJ Remodelaciones en esfuerzo1909-nginx-host-server.
 #
-# nginx (sites-available/esfuerzovz) sirve frontend/dist bajo /fvj/ y hace
-# proxy de /fvj/api/ y /fvj/admin/ a 127.0.0.1:8003 (gunicorn-fvj.service) —
-# no necesita recargarse: solo lee los archivos que este script actualiza.
+# nginx sirve frontend/dist bajo /fvj/ y hace proxy de /fvj/api/,
+# /fvj/admin/ y /fvj/clerk/ a 127.0.0.1:8003 (gunicorn-fvj.service). Sus
+# bloques viven en deploy/nginx-fvj.conf.snippet; este script los copia a
+# /etc/nginx/snippets/fvj.conf (incluido desde sites-available/esfuerzovz) y
+# recarga nginx solo si cambiaron.
 #
 # Primer uso: clona el repo si la carpeta no existe todavía. Uso normal:
 # hace git pull. Antes de correrlo la primera vez hace falta:
 #   1. backend/.env ya creado a mano en el servidor (ver deploy/env.example)
 #   2. La base de datos Postgres ya creada (ver deploy/README.md)
 #   3. deploy/gunicorn-fvj.service copiado a /etc/systemd/system/ y habilitado
-#   4. El bloque de deploy/nginx-fvj.conf.snippet ya agregado a
-#      /etc/nginx/sites-available/esfuerzovz (y nginx recargado una vez)
+#   4. La línea `include /etc/nginx/snippets/fvj.conf;` en el server{} de
+#      puerto 443 de /etc/nginx/sites-available/esfuerzovz
 
 set -euo pipefail
 
@@ -76,5 +78,30 @@ npm run build
 
 echo "==> Reiniciar gunicorn"
 sudo systemctl restart gunicorn-fvj.service
+
+# Después de gunicorn: las rutas nuevas del snippet ya tienen a dónde ir.
+# Si nginx -t no acepta el snippet nuevo se restaura el anterior y nginx
+# sigue con la configuración que tenía.
+NGINX_SNIPPET="/etc/nginx/snippets/fvj.conf"
+if ! sudo cmp -s "$APP_DIR/deploy/nginx-fvj.conf.snippet" "$NGINX_SNIPPET"; then
+  echo "==> nginx: actualizando $NGINX_SNIPPET"
+  if sudo test -f "$NGINX_SNIPPET"; then
+    sudo cp "$NGINX_SNIPPET" "$NGINX_SNIPPET.bak"
+  fi
+  sudo cp "$APP_DIR/deploy/nginx-fvj.conf.snippet" "$NGINX_SNIPPET"
+  if sudo nginx -t; then
+    sudo systemctl reload nginx
+  else
+    echo "ERROR: nginx -t rechazó el snippet nuevo; se restaura el anterior." >&2
+    if sudo test -f "$NGINX_SNIPPET.bak"; then
+      sudo cp "$NGINX_SNIPPET.bak" "$NGINX_SNIPPET"
+    else
+      sudo rm -f "$NGINX_SNIPPET"
+    fi
+    exit 1
+  fi
+else
+  echo "==> nginx: sin cambios"
+fi
 
 echo "==> Listo."
